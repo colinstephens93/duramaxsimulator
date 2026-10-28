@@ -1785,6 +1785,8 @@ export function buildEnvironment(scene, renderer, materials) {
       centerRadius: 1.25,
       dynoBox: new THREE.Box3(new THREE.Vector3(-0.8, 0, -2.3), new THREE.Vector3(0.8, 1.5, -1.05)),
       room: new THREE.Box3(new THREE.Vector3(-5.4, 0.1, -4.6), new THREE.Vector3(5.4, 3.9, 4.6)),
+      // Where the orbit camera may be: inside the walls and under the ceiling lights (their lowest face is 3.83 m).
+      orbitBox: new THREE.Box3(new THREE.Vector3(-5.4, 0.25, -4.6), new THREE.Vector3(5.4, 3.6, 4.6)),
       cameraHeight: 1.66,
     },
     keyLight: key,

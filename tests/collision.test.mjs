@@ -1,7 +1,8 @@
-// Where the camera may go (src/collision.js): walking collision against the room's real numbers.
+// Where the camera may go (src/collision.js): walking collision and the orbit camera's room, against
+// the room's real numbers.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildWalkWorld, isWalkable, resolveWalk } from '../src/collision.js';
+import { buildWalkWorld, confineOrbitCamera, isWalkable, resolveWalk } from '../src/collision.js';
 import { mulberry32 } from './helpers/fake-audio.mjs';
 
 // environment.collision: the room, and the dyno guard volume the walker keeps out of.
@@ -255,5 +256,164 @@ describe('random walks', () => {
         at = next;
       }
     }
+  });
+});
+
+describe('the orbit camera', () => {
+  // environment.collision.orbitBox, and the OrbitControls limits set in main.js.
+  const ORBIT_BOX = { min: { x: -5.4, y: 0.25, z: -4.6 }, max: { x: 5.4, y: 3.6, z: 4.6 } };
+  const MIN_DISTANCE = 1.05;
+  const MAX_DISTANCE = 6.6;
+  const MIN_POLAR = 0.16;
+  const MAX_POLAR = Math.PI * 0.49;
+  const HOME_POSITION = { x: 1.62, y: 1.64, z: 2.02 };
+  const HOME_TARGET = { x: 0, y: 1.035, z: -0.03 };
+  // Where the focus point can be: the orbit box, held MIN_DISTANCE in from the walls and ceiling
+  // (x within 4.35 m, z within 3.55 m, up to 2.55 m high).
+  const PAN_BOX = {
+    min: { x: ORBIT_BOX.min.x + MIN_DISTANCE, y: ORBIT_BOX.min.y, z: ORBIT_BOX.min.z + MIN_DISTANCE },
+    max: { x: ORBIT_BOX.max.x - MIN_DISTANCE, y: ORBIT_BOX.max.y - MIN_DISTANCE, z: ORBIT_BOX.max.z - MIN_DISTANCE },
+  };
+
+  const AXES = ['x', 'y', 'z'];
+  const isInside = (p, box) => AXES.every((axis) => p[axis] >= box.min[axis] && p[axis] <= box.max[axis]);
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  const unitOffset = (position, target) => {
+    const length = distance(position, target);
+    return AXES.map((axis) => (position[axis] - target[axis]) / length);
+  };
+  // A camera `radius` from `target`, placed the way OrbitControls does.
+  const orbitFrom = (target, azimuth, polar, radius) => ({
+    x: target.x + radius * Math.sin(polar) * Math.sin(azimuth),
+    y: target.y + radius * Math.cos(polar),
+    z: target.z + radius * Math.sin(polar) * Math.cos(azimuth),
+  });
+  const confine = (position, target) => confineOrbitCamera(position, target, ORBIT_BOX, MIN_DISTANCE);
+
+  it('leaves the home view alone', () => {
+    const position = { ...HOME_POSITION };
+    const target = { ...HOME_TARGET };
+    assert.equal(confine(position, target), false);
+    assert.deepEqual(position, HOME_POSITION);
+    assert.deepEqual(target, HOME_TARGET);
+  });
+
+  // Regression: zooming out used to put the camera outside the wall or above the ceiling.
+  it('stops zooming out at the front wall, still looking at the same point', () => {
+    const target = { ...HOME_TARGET };
+    const position = orbitFrom(target, 0, 88 * (Math.PI / 180), MAX_DISTANCE); // was (0, 1.24, 6.57)
+    const before = unitOffset(position, target);
+    assert.equal(confine(position, target), true);
+    near(position.z, 4.6, 'z');
+    assert.ok(isInside(position, ORBIT_BOX));
+    unitOffset(position, target).forEach((component, i) => near(component, before[i], `view direction ${AXES[i]}`, 1e-9));
+  });
+
+  it('stops looking down from above the ceiling lights', () => {
+    const target = { ...HOME_TARGET };
+    const position = orbitFrom(target, 0, MIN_POLAR, MAX_DISTANCE); // was (0, 7.55, 1.02)
+    assert.equal(confine(position, target), true);
+    near(position.y, 3.6, 'y');
+    assert.ok(isInside(position, ORBIT_BOX));
+  });
+
+  it('keeps every orbit position inside the room and the focus point away from the walls', () => {
+    const targets = [HOME_TARGET];
+    for (const x of [PAN_BOX.min.x, PAN_BOX.max.x]) {
+      for (const y of [PAN_BOX.min.y, PAN_BOX.max.y]) {
+        for (const z of [PAN_BOX.min.z, PAN_BOX.max.z]) targets.push({ x, y, z });
+      }
+    }
+    let pulledIn = 0;
+    let untouched = 0;
+    for (const home of targets) {
+      for (let azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 15) {
+        for (const polar of [MIN_POLAR, 0.6, 1.0, 1.4, MAX_POLAR]) {
+          for (const radius of [MIN_DISTANCE, 2, 4, MAX_DISTANCE]) {
+            const target = { ...home };
+            const position = orbitFrom(target, (azimuthDeg * Math.PI) / 180, polar, radius);
+            const original = { ...position };
+            const direction = unitOffset(position, target);
+            const label = `target (${home.x}, ${home.y}, ${home.z}), azimuth ${azimuthDeg}, polar ${polar.toFixed(2)}, radius ${radius}`;
+
+            const moved = confine(position, target);
+
+            assert.ok(isInside(position, ORBIT_BOX), `${label}: camera left the room at (${position.x}, ${position.y}, ${position.z})`);
+            assert.deepEqual(target, home, `${label}: the focus point moved`);
+            assert.ok(distance(position, target) >= MIN_DISTANCE - 1e-9, `${label}: camera ended ${distance(position, target)} m from the focus`);
+            unitOffset(position, target).forEach((component, i) => near(component, direction[i], `${label}: view direction`, 1e-9));
+            if (moved) pulledIn++;
+            else {
+              untouched++;
+              assert.deepEqual(position, original, `${label}: moved without saying so`);
+            }
+          }
+        }
+      }
+    }
+    // Both kinds of case must be in the sweep, or it proves nothing.
+    assert.ok(pulledIn > 500 && untouched > 500, `${pulledIn} cameras pulled in, ${untouched} left alone`);
+  });
+
+  it('holds a panned focus point inside the walls and takes the camera with it', () => {
+    const target = { x: 9, y: 1, z: 9 };
+    const position = { x: 10, y: 2, z: 10 };
+    assert.equal(confine(position, target), true);
+    near(target.x, 4.35, 'focus x');
+    near(target.y, 1, 'focus y');
+    near(target.z, 3.55, 'focus z');
+    near(position.x - target.x, 1, 'camera offset x');
+    near(position.y - target.y, 1, 'camera offset y');
+    near(position.z - target.z, 1, 'camera offset z');
+  });
+
+  it('stops a pan at the wall instead of carrying the view out of the room', () => {
+    const position = { ...HOME_POSITION };
+    const target = { ...HOME_TARGET };
+    for (let frame = 0; frame < 200; frame++) {
+      position.x += 0.05; // OrbitControls pans the camera and the focus point together
+      target.x += 0.05;
+      confine(position, target);
+      assert.ok(isInside(position, ORBIT_BOX), `frame ${frame}: camera at (${position.x}, ${position.y}, ${position.z})`);
+      assert.ok(isInside(target, PAN_BOX), `frame ${frame}: focus at (${target.x}, ${target.y}, ${target.z})`);
+    }
+    near(target.x, 4.35, 'x the focus stopped at');
+  });
+
+  it('holds a camera zoomed out against the wall steady', () => {
+    // Scrolling out frame after frame, as OrbitControls does: the radius grows each frame and the
+    // camera must settle on the wall rather than drift or jitter.
+    const position = { ...HOME_POSITION };
+    const target = { ...HOME_TARGET };
+    let previous = null;
+    for (let frame = 0; frame < 60; frame++) {
+      const radius = Math.min(MAX_DISTANCE, distance(position, target) * 1.1);
+      const direction = unitOffset(position, target);
+      AXES.forEach((axis, i) => {
+        position[axis] = target[axis] + direction[i] * radius;
+      });
+      confine(position, target);
+      assert.ok(isInside(position, ORBIT_BOX), `frame ${frame}`);
+      previous = { ...position };
+    }
+    const settled = { ...position };
+    const direction = unitOffset(position, target);
+    const radius = Math.min(MAX_DISTANCE, distance(position, target) * 1.1);
+    AXES.forEach((axis, i) => {
+      position[axis] = target[axis] + direction[i] * radius;
+    });
+    confine(position, target);
+    AXES.forEach((axis) => near(position[axis], settled[axis], `${axis} after one more scroll`, 1e-9));
+    assert.ok(distance(settled, target) > distance(HOME_POSITION, HOME_TARGET), 'did not zoom out at all');
+    assert.ok(previous);
+  });
+
+  it('is idempotent', () => {
+    const target = { x: 9, y: 4, z: -9 };
+    const position = { x: 12, y: 9, z: -12 };
+    assert.equal(confine(position, target), true);
+    const settled = { position: { ...position }, target: { ...target } };
+    assert.equal(confine(position, target), false);
+    assert.deepEqual({ position, target }, settled);
   });
 });

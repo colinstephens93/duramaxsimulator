@@ -10,7 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createMaterials } from './utils.js';
 import { buildEngine } from './engine.js';
 import { buildEnvironment } from './environment.js';
-import { buildWalkWorld, resolveWalk } from './collision.js';
+import { buildWalkWorld, confineOrbitCamera, resolveWalk } from './collision.js';
 import { TestCellAudio } from './audio.js';
 import {
   CALIBRATIONS,
@@ -435,7 +435,11 @@ function updateCamera(dt) {
     }
     return;
   }
-  if (controls.enabled) controls.update();
+  if (controls.enabled) {
+    controls.update();
+    // Zooming out or panning must not take the camera through the walls or the ceiling.
+    confineOrbitCamera(camera.position, controls.target, environment.collision.orbitBox, controls.minDistance);
+  }
 }
 
 function setCameraDirectionFromTarget() {

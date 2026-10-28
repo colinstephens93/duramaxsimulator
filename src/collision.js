@@ -1,5 +1,5 @@
-// Where the camera may go. Plain functions on {x, z} data, with no Three.js and no DOM, so the
-// same code runs in the browser and in the Node tests.
+// Where the camera may go. Plain functions on {x, z} / {x, y, z} data, with no Three.js and no DOM,
+// so the same code runs in the browser and in the Node tests.
 
 const EPS = 1e-9;
 
@@ -133,4 +133,52 @@ export function resolveWalk(from, to, world) {
     at = hop(at, { x: at.x + dx / hops, z: at.z + dz / hops }, world);
   }
   return at;
+}
+
+/* ---------------------------------------------------------------------------
+   Orbit camera
+--------------------------------------------------------------------------- */
+
+const AXES = ['x', 'y', 'z'];
+
+/**
+ * Keeps an orbit camera inside the room. `position` and `target` ({ x, y, z }, so THREE.Vector3 works)
+ * are moved in place; `bounds` ({ min, max }, so THREE.Box3 works) is the box the camera may be in.
+ *
+ * The focus point is held `minDistance` inside the walls and ceiling so there is always room to stand
+ * back from it (the camera moves with it, so a pan just stops at the edge). The camera is then pulled
+ * in along its line of sight until it is inside the box, so zooming out stops at the wall and the view
+ * direction never changes. The floor needs no such margin: the controls' polar limit keeps the camera
+ * above the focus point.
+ *
+ * Returns true if anything moved.
+ */
+export function confineOrbitCamera(position, target, bounds, minDistance) {
+  const { min, max } = bounds;
+  let moved = false;
+
+  for (const axis of AXES) {
+    const lowest = axis === 'y' ? min.y : min[axis] + minDistance;
+    const highest = max[axis] - minDistance;
+    const held = Math.min(Math.max(target[axis], lowest), highest);
+    if (held !== target[axis]) {
+      position[axis] += held - target[axis];
+      target[axis] = held;
+      moved = true;
+    }
+  }
+
+  let scale = 1;
+  for (const axis of AXES) {
+    const offset = position[axis] - target[axis];
+    if (offset > 0) scale = Math.min(scale, (max[axis] - target[axis]) / offset);
+    else if (offset < 0) scale = Math.min(scale, (min[axis] - target[axis]) / offset);
+  }
+  if (scale < 1 - EPS) {
+    for (const axis of AXES) position[axis] = target[axis] + (position[axis] - target[axis]) * scale;
+    moved = true;
+  }
+  // Rounding in the steps above can leave the camera a hair outside the box.
+  for (const axis of AXES) position[axis] = Math.min(Math.max(position[axis], min[axis]), max[axis]);
+  return moved;
 }
