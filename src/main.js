@@ -10,6 +10,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createMaterials } from './utils.js';
 import { buildEngine } from './engine.js';
 import { buildEnvironment } from './environment.js';
+import { buildWalkWorld, resolveWalk } from './collision.js';
 import { TestCellAudio } from './audio.js';
 import {
   CALIBRATIONS,
@@ -219,6 +220,8 @@ const walk = {
   bobPhase: 0,
   lastSafe: new THREE.Vector3(2.0, 1.66, 2.4),
 };
+// What the walker bumps into, in plan view: the room, the engine, the dyno guard and the console.
+const walkWorld = buildWalkWorld(environment.collision, { x: ENGINE_CENTER_XZ.x, z: ENGINE_CENTER_XZ.y });
 
 // First frame / intro tween.
 introTween = {
@@ -500,43 +503,18 @@ function updateWalk(dt) {
   if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
   walk.velocity.x = damp(walk.velocity.x, wish.x, 11, dt);
   walk.velocity.z = damp(walk.velocity.z, wish.z, 11, dt);
-  const proposed = camera.position.clone();
-  proposed.x += walk.velocity.x * dt;
-  proposed.z += walk.velocity.z * dt;
-
-  const bound = environment.collision.room;
-  proposed.x = clamp(proposed.x, bound.min.x + 0.35, bound.max.x - 0.35);
-  proposed.z = clamp(proposed.z, bound.min.z + 0.35, bound.max.z - 0.35);
-
-  // Stay outside the engine / bedplate envelope.
-  const dx = proposed.x - ENGINE_CENTER_XZ.x;
-  const dz = proposed.z - ENGINE_CENTER_XZ.y;
-  const minRadius = 1.03;
-  const d = Math.hypot(dx, dz);
-  if (d < minRadius) {
-    proposed.x = ENGINE_CENTER_XZ.x + (dx / Math.max(0.001, d)) * minRadius;
-    proposed.z = ENGINE_CENTER_XZ.y + (dz / Math.max(0.001, d)) * minRadius;
-  }
-  // Dyno guard volume.
-  const b = environment.collision.dynoBox;
-  if (
-    proposed.x > b.min.x - 0.3 &&
-    proposed.x < b.max.x + 0.3 &&
-    proposed.z > b.min.z - 0.3 &&
-    proposed.z < b.max.z + 0.3
-  ) {
-    proposed.z = b.max.z + 0.31;
-  }
-  // Console / toolchest block.
-  if (proposed.x > 1.25 && proposed.z > -1.75 && proposed.z < 0.8) {
-    proposed.x = 1.25;
-  }
+  // Stops at the walls, engine, dyno guard and console and slides along them.
+  const next = resolveWalk(
+    camera.position,
+    { x: camera.position.x + walk.velocity.x * dt, z: camera.position.z + walk.velocity.z * dt },
+    walkWorld,
+  );
 
   const moving = walk.velocity.lengthSq() > 0.03;
   walk.bobPhase += dt * (sprint ? 10 : 6.5) * (moving ? 1 : 0);
   const bob = moving ? Math.sin(walk.bobPhase) * 0.015 : 0;
-  camera.position.x = proposed.x;
-  camera.position.z = proposed.z;
+  camera.position.x = next.x;
+  camera.position.z = next.z;
   camera.position.y = damp(camera.position.y, 1.66 + bob, 12, dt);
   camera.rotation.order = 'YXZ';
   camera.rotation.set(walk.pitch, walk.yaw, 0);
