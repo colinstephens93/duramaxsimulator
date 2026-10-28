@@ -589,7 +589,7 @@ function raycastParts({ cutawayAware = true } = {}) {
   const objects = [engine.root];
   for (const [, roots] of environment.interactives) objects.push(...roots);
   const intersections = raycaster.intersectObjects(objects, true);
-  const xrayed = engine.cutawayAmount > 0.35;
+  const xrayed = engine.isXrayed;
   for (const hit of intersections) {
     if (!isEffectivelyVisible(hit.object)) continue;
     if (cutawayAware && xrayed) {

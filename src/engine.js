@@ -47,6 +47,11 @@ const LOBE_LIFT = 8.0;
 const INTAKE_DURATION_CAM = VALVE_TIMING.intake.duration / 2;
 const EXHAUST_DURATION_CAM = VALVE_TIMING.exhaust.duration / 2;
 const MAIN_JOURNAL_Z = [277, 131, 0, -131, -277];
+// The exploded view also fades the castings, by this fraction of a full cutaway, so the crank, rods and
+// pistons stay legible inside the block.
+const EXPLODE_CUTAWAY_FRACTION = 0.45;
+// Past this much fade (opacity about 0.67) clicks go through the castings to the parts inside.
+const XRAY_PICK_THRESHOLD = 0.35;
 
 function easeInOutCubic(x) {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
@@ -4088,6 +4093,16 @@ export class EngineBuilder {
     this.explodeTarget = on ? 1 : 0;
   }
 
+  /** How faded the castings are: the cutaway, or the lesser fade the exploded view applies. */
+  get effectiveCutaway() {
+    return Math.max(this.cutawayAmount, this.explodeAmount * EXPLODE_CUTAWAY_FRACTION);
+  }
+
+  /** True when the castings are faded enough that picking goes through them. */
+  get isXrayed() {
+    return this.effectiveCutaway > XRAY_PICK_THRESHOLD;
+  }
+
   _applyCutaway(amount) {
     const sign = amount > 0.001 ? 1 : 0;
     if (sign !== this._lastCutawaySign) {
@@ -4154,7 +4169,7 @@ export class EngineBuilder {
     }
     // Exploded presentation fades the block casting slightly more so the internal
     // crankshaft, rods, pistons, and cam remain legible inside the block.
-    const effectiveCutaway = Math.max(this.cutawayAmount, this.explodeAmount * 0.45);
+    const effectiveCutaway = this.effectiveCutaway;
     this._applyCutaway(effectiveCutaway);
     this._applyExplode(this.explodeAmount, t);
     const showInternals = this.cutawayAmount > 0.02 || this.explodeAmount > 0.02;
@@ -4311,4 +4326,15 @@ export function buildEngine(materials) {
   return new EngineBuilder(materials).build();
 }
 
-export { DECK_Y, HEAD_TOP, ROCKER_Y, VALVE_TIP_Y, CAM_Y, CAM_BASE_RADIUS, ROLLER_RADIUS, LOBE_LIFT };
+export {
+  DECK_Y,
+  HEAD_TOP,
+  ROCKER_Y,
+  VALVE_TIP_Y,
+  CAM_Y,
+  CAM_BASE_RADIUS,
+  ROLLER_RADIUS,
+  LOBE_LIFT,
+  EXPLODE_CUTAWAY_FRACTION,
+  XRAY_PICK_THRESHOLD,
+};
