@@ -67,6 +67,19 @@ The default commands are local-only (`127.0.0.1`). To use a different port:
 npx vite --host 127.0.0.1 --port 5174
 ```
 
+### Tests
+
+```bash
+npm test
+```
+
+Runs the Node built-in test runner (no browser, no extra dependencies):
+
+- `tests/kinematics.test.mjs`: firing order, the 99 mm crank-slider stroke and TDC phasing, the cam-driven valve timing, and the calibration spec points.
+- `tests/audio-pulses.test.mjs`: the per-cylinder pulse cadence in `src/audio.js` across RPM and frame rate, stalls, slow motion and firing order, against a fake Web Audio graph.
+
+`src/main.js` (hotkeys, HUD, toasts) needs a browser and is not covered.
+
 ---
 
 ## First look
@@ -269,6 +282,7 @@ For automated screenshots, append `?qa=1` to the URL to disable adaptive quality
 | `src/kinematics.js` | Engine constants, cylinder layout, firing order, dual calibrations, motion and performance curves |
 | `src/specs.js` | Engineering specification cards and component metadata |
 | `src/utils.js` | Procedural textures, PBR material library, geometry helpers, labels, merge utilities |
+| `tests/` | `npm test` suite: kinematics and audio-pulse checks |
 | `lly_report.md` | Development research notes and source links |
 | `dist/` | Generated production build (ignored by git) |
 
