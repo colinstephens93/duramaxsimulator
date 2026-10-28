@@ -116,6 +116,31 @@ function makeEnvMap(renderer) {
   return rt.texture;
 }
 
+/**
+ * A linear ceiling fixture: the housing, the lit lens under it and two hanger rods up to the ceiling.
+ * Its origin is the middle of the lens and its long axis runs along x, so the rods sit 0.5 m either
+ * side of the middle along x, tilted slightly outward towards the ceiling.
+ */
+export function buildCeilingFixture(housingMat, lensMat) {
+  const fixture = new THREE.Group();
+  fixture.name = 'ceiling-fixture';
+  fixture.add(box(1.9, 0.09, 0.22, housingMat, { name: 'housing', position: [0, 0.07, 0], castShadow: false }));
+  fixture.add(
+    box(1.75, 0.05, 0.14, lensMat, { name: 'lens', position: [0, -0.01, 0], castShadow: false, receiveShadow: false }),
+  );
+  for (const dx of [-0.5, 0.5]) {
+    fixture.add(
+      box(0.04, 0.45, 0.04, housingMat, {
+        name: 'hanger',
+        position: [dx, 0.3, 0],
+        rotation: [0, 0, -dx * 0.1],
+        castShadow: false,
+      }),
+    );
+  }
+  return fixture;
+}
+
 export function buildEnvironment(scene, renderer, materials) {
   RectAreaLightUniformsLib.init();
   const m = materials;
@@ -629,31 +654,9 @@ export function buildEnvironment(scene, renderer, materials) {
   ];
   for (let li = 0; li < lightPositions.length; li++) {
     const [x, y, z] = lightPositions[li];
-    const fix = new THREE.Group();
+    const fix = buildCeilingFixture(wallPanelMat, fixtureMat);
     fix.position.set(x, y, z);
     root.add(fix);
-    fix.add(
-      box(1.9, 0.09, 0.22, wallPanelMat, {
-        position: [0, 0.07, 0],
-        castShadow: false,
-      }),
-    );
-    fix.add(
-      box(1.75, 0.05, 0.14, fixtureMat, {
-        position: [0, -0.01, 0],
-        castShadow: false,
-        receiveShadow: false,
-      }),
-    );
-    for (const dz of [-0.5, 0.5]) {
-      fix.add(
-        box(0.04, 0.45, 0.04, wallPanelMat, {
-          position: [0, 0.3, dz],
-          rotation: [dz * 0.1, 0, 0],
-          castShadow: false,
-        }),
-      );
-    }
     if (li === 1) {
       const rect = new THREE.RectAreaLight(0xffead1, 0.65, 1.65, 0.17);
       rect.position.set(x, y - 0.06, z);
