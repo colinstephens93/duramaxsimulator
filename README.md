@@ -77,8 +77,11 @@ Runs the Node built-in test runner (no browser, no extra dependencies):
 
 - `tests/kinematics.test.mjs`: firing order, the 99 mm crank-slider stroke and TDC phasing, the cam-driven valve timing, and the calibration spec points.
 - `tests/audio-pulses.test.mjs`: the per-cylinder pulse cadence in `src/audio.js` across RPM and frame rate, stalls, slow motion and firing order, against a fake Web Audio graph.
+- `tests/picking.test.mjs`: when a click goes through the faded castings to the parts inside, in the cutaway and exploded views.
+- `tests/collision.test.mjs`: walk-mode collision against the engine, dyno guard, console and walls, and the orbit camera's room limits (`src/collision.js`), using the room's real numbers.
+- `tests/fixture.test.mjs`: the ceiling fixtures' hanger rods are attached to the housing and reach the ceiling.
 
-`src/main.js` (hotkeys, HUD, toasts) needs a browser and is not covered.
+`src/main.js` (hotkeys, HUD, toasts, the render loop) needs a browser and is not covered; the rules it calls for picking and collision live in `src/engine.js` and `src/collision.js` so they are. `buildEnvironment()` needs WebGL, so the tests build only the pieces of it they exercise.
 
 ---
 
@@ -110,6 +113,8 @@ The simulation is deliberately responsive: engine RPM is smoothed with damped ta
 | `Shift` | Sprint |
 | `Esc` | Release pointer lock; close Help or Spec Sheet |
 | `V` | Exit walk mode |
+
+The orbit camera stays inside the test cell: zooming out stops at the walls and below the ceiling lights, and the pan target stops a metre short of them. In walk mode you stop at the walls, the engine, the dyno guard and the console, and slide along them.
 
 Click the viewport in walk mode if the browser asks to capture the mouse. A crosshair and compact RPM/HP/boost HUD are shown while walking.
 
@@ -276,13 +281,14 @@ For automated screenshots, append `?qa=1` to the URL to disable adaptive quality
 | `index.html` | Application shell, HUD, calibration switch, inspector, help, full data sheet |
 | `src/styles.css` | Industrial UI, viewport layout, responsive rules, walk HUD |
 | `src/main.js` | Renderer, post-processing, simulation state, controls, picking, telemetry, screenshots |
+| `src/collision.js` | Walk-mode collision and the orbit camera's room limits (plain functions, no Three.js, covered by the tests) |
 | `src/audio.js` | Real-time Web Audio API V8 exhaust, injector knock, starter, and GT3788VA VNT turbo synthesizer |
 | `src/engine.js` | Procedural LLY geometry, materials assignment, kinematics, cutaway/explode |
 | `src/environment.js` | Test cell, stand, dyno, props, lighting, environment reflections |
 | `src/kinematics.js` | Engine constants, cylinder layout, firing order, dual calibrations, motion and performance curves |
 | `src/specs.js` | Engineering specification cards and component metadata |
 | `src/utils.js` | Procedural textures, PBR material library, geometry helpers, labels, merge utilities |
-| `tests/` | `npm test` suite: kinematics and audio-pulse checks |
+| `tests/` | `npm test` suite: kinematics, audio-pulse, picking, collision and fixture checks |
 | `lly_report.md` | Development research notes and source links |
 | `dist/` | Generated production build (ignored by git) |
 
@@ -310,6 +316,7 @@ Do not use this application for engine assembly, service limits, torque specific
 - **Part specification copy**: `src/specs.js`.
 - **Engine geometry, materials, cutaway and exploded offsets**: `src/engine.js`.
 - **Test cell, lighting, and dyno**: `src/environment.js`.
+- **Where the walker and orbit camera may go**: `src/collision.js` for the clearances and the console block, and `environment.collision` in `src/environment.js` for the room, dyno guard and orbit volumes.
 - **UI layout and shortcuts**: `index.html`, `src/styles.css`, and `bindControls()` in `src/main.js`.
 - **Branding and engine data sheet**: `index.html` and `src/environment.js`.
 
