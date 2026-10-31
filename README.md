@@ -114,7 +114,7 @@ The simulation is deliberately responsive: engine RPM is smoothed with damped ta
 | `Esc` | Release pointer lock; close Help or Spec Sheet |
 | `V` | Exit walk mode |
 
-The orbit camera stays inside the test cell: zooming out stops at the walls and below the ceiling lights, and the pan target stops a metre short of them. In walk mode you stop at the walls, the engine, the dyno guard and the console, and slide along them.
+The orbit camera stays inside the test cell: zooming out stops at the walls and below the ceiling lights, and the pan target stops 1.05 m short of them. In walk mode you stop at the walls, the engine, the dyno guard and the console, and slide along them.
 
 Click the viewport in walk mode if the browser asks to capture the mouse. A crosshair and compact RPM/HP/boost HUD are shown while walking.
 
@@ -131,7 +131,7 @@ Click the viewport in walk mode if the browser asks to capture the mouse. A cros
 | `5` | Governor — 3,250 RPM |
 | `M` | Toggle slow motion (`0.12×` mechanical time) |
 | `S` or Speaker button | Toggle real-time 3D test-cell audio synthesizer |
-| `ALLISON 1000` / `ZF S6-650` | Switch between automatic (`605 lb-ft / 310 hp / 26,000 psi`) and 6-speed manual (`520 lb-ft / 300 hp / 23,000 psi`) calibrations |
+| `ALLISON 1000` / `ZF S6-650` | Switch between the Allison 1000 automatic (2006: `605 lb-ft / 310 hp / 26,000 psi`) and the ZF S6-650 6-speed manual (`520 lb-ft / 300 hp / 23,000 psi`) calibrations |
 | `C` | Cutaway / X-ray castings |
 | `E` | Explode assemblies |
 | `A` | Assemble (Orbit mode; strafes left in Walk mode) |
@@ -198,8 +198,8 @@ Internal assemblies are only rendered when **Cutaway** or **Exploded** mode is a
 RPM, estimated torque and horsepower, rail pressure, boost, VGT vane position, EGT, oil pressure, coolant temperature, firing-sequence state, stroke phase, tachometer, and a live torque/power brake curve.
 
 A calibration toggle in the telemetry panel switches live between:
-- **Allison 1000 Automatic:** **605 lb-ft @ 1,600 RPM**, **310 hp @ 3,000 RPM**, **26,000 psi** max CP3.3 rail pressure
-- **ZF S6-650 6-Speed Manual:** **520 lb-ft @ 1,600 RPM**, **300 hp @ 3,000 RPM**, **23,000 psi** max CP3.3 rail pressure
+- **Allison 1000 Automatic (2006):** **605 lb-ft @ 1,600 RPM**, **310 hp @ 3,000 RPM**, **26,000 psi** max CP3.3 rail pressure
+- **ZF S6-650 6-Speed Manual (2004.5–2006; rail pressure 2004.5–2005):** **520 lb-ft @ 1,600 RPM**, **300 hp @ 3,000 RPM**, **23,000 psi** max CP3.3 rail pressure
 
 Torque, power, boost, rail pressure, vane position, and thermal values are **curve-based estimates** for visualisation. They are not the result of a thermodynamic or CFD solver.
 
@@ -289,7 +289,8 @@ For automated screenshots, append `?qa=1` to the URL to disable adaptive quality
 | `src/specs.js` | Engineering specification cards and component metadata |
 | `src/utils.js` | Procedural textures, PBR material library, geometry helpers, labels, merge utilities |
 | `tests/` | `npm test` suite: kinematics, audio-pulse, picking, collision and fixture checks |
-| `lly_report.md` | Development research notes and source links |
+| `docs/` | Engine-library plan, agent runbook and research sheets (`docs/research/`) |
+| `lly_report.md` | Original development research notes. Superseded where it differs by `docs/research/` |
 | `dist/` | Generated production build (ignored by git) |
 
 ---
@@ -299,9 +300,9 @@ For automated screenshots, append `?qa=1` to the URL to disable adaptive quality
 The mechanical layout follows the project brief and the supplied LLY specification. Some points are worth stating explicitly:
 
 - **Bore, stroke, crank throw, 90° bank angle, firing order, firing intervals, and the 0.5× cam ratio are implemented directly.** Stroke travel is 99.00 mm.
-- Ancillary packaging dimensions, casting shapes, some service clearances, and the visual connecting-rod length are stylised for legibility. This is not OEM CAD.
-- The telemetry panel supports both the **Allison 1000 Automatic (`605 lb-ft / 310 hp / 26,000 psi`)** and **ZF S6-650 6-Speed Manual (`520 lb-ft / 300 hp / 23,000 psi`)** ratings. Production LLY figures vary by model year and transmission pairing; 2006 Duramax engines are largely LBZ, with different ratings.
-- The brief describes piezoelectric injectors. Production LLY engines used **Bosch solenoid injectors**; the visual injector hardware and specification copy follow the requested brief. See [`lly_report.md`](lly_report.md) for the underlying research and source links.
+- Ancillary packaging dimensions, casting shapes, some service clearances, and the visual connecting-rod length are stylised for legibility. The rods are modelled at 184 mm centre to centre; the research gives 163.0 mm for the production rod ([`docs/research/lly.md`](docs/research/lly.md), section 2; the conflict is in section 6). This is not OEM CAD.
+- The telemetry panel supports both the **Allison 1000 Automatic (`605 lb-ft / 310 hp / 26,000 psi`)** and **ZF S6-650 6-Speed Manual (`520 lb-ft / 300 hp / 23,000 psi`)** ratings. Production LLY figures vary by model year and transmission pairing. The LLY was built from mid-2004 to early 2006, so a 2006 truck may have either an LLY or an LBZ. The LBZ (2006–2007, VIN code D) has different ratings and is not modelled in this app.
+- The brief describes piezoelectric injectors. Sources disagree. Four secondary sources describe **Bosch solenoid injectors**, which the research favours, while the GM-style spec sheet and DieselHub say piezoelectric. The visual injector hardware and specification copy follow the requested brief. See [`docs/research/lly.md`](docs/research/lly.md) for the conflict, and [`lly_report.md`](lly_report.md) for the original notes.
 - Valve lift, spring geometry, lobe profiles, and rocker ratios are engineering approximations built to preserve correct relative motion, not certified OEM lift data.
 - Torque, power, rail pressure, boost, vane, EGT, and oil values are illustrative curves, not a live ECU or dyno data stream.
 
@@ -361,4 +362,4 @@ npm run build
 - Built with [Three.js](https://threejs.org/) (MIT licence).
 - Development tooling: [Vite](https://vite.dev/), [Playwright](https://playwright.dev/).
 - Duramax, DMAX, Chevrolet, GMC, Bosch, Garrett, and ACDelco are trademarks of their respective owners. This is an independent educational/engineering visualisation and is not affiliated with or endorsed by General Motors, Bosch, Garrett, or ACDelco.
-- Research references are recorded in [`lly_report.md`](lly_report.md).
+- Research references are recorded in [`docs/research/sources.md`](docs/research/sources.md). The original notes are in [`lly_report.md`](lly_report.md).

@@ -43,6 +43,32 @@ const SLOW_MOTION_SCALE = 0.12;
 
 const $ = (id) => document.getElementById(id);
 const QA_MODE = new URLSearchParams(window.location.search).has('qa');
+const QA_RANDOM_SEED = 0x5eed0a04;
+
+function createSeededRandom(seed) {
+  let state = seed >>> 0;
+  return function seededRandom() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const qaRandom = createSeededRandom(QA_RANDOM_SEED);
+
+function withSeededRandom(callback) {
+  if (!QA_MODE) return callback();
+  const originalRandom = Math.random;
+  Math.random = qaRandom;
+  try {
+    return callback();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 const clamp = THREE.MathUtils.clamp;
 const damp = THREE.MathUtils.damp;
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
@@ -86,7 +112,7 @@ engine.root.scale.setScalar(0.001);
 engine.root.position.set(0, ENGINE_Y, 0);
 scene.add(engine.root);
 
-const environment = buildEnvironment(scene, renderer, materials);
+const environment = withSeededRandom(() => buildEnvironment(scene, renderer, materials));
 const audio = new TestCellAudio();
 
 // A small inspection fill keeps the exposed internals legible under X-ray /
@@ -128,7 +154,9 @@ composer.setSize(window.innerWidth, window.innerHeight);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
-const ssaoPass = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight, 16);
+const ssaoPass = withSeededRandom(
+  () => new SSAOPass(scene, camera, window.innerWidth, window.innerHeight, 16),
+);
 ssaoPass.kernelRadius = 8;
 ssaoPass.minDistance = 0.001;
 ssaoPass.maxDistance = 0.075;
@@ -206,7 +234,7 @@ let uiTimer = 0;
 let fpsSamples = [];
 let qualityReduced = false;
 let screenshotPending = false;
-let startedAt = performance.now();
+let startedAt = QA_MODE ? 0 : performance.now();
 let frameCount = 0;
 
 const raycaster = new THREE.Raycaster();
@@ -409,7 +437,9 @@ function updateCamera(dt) {
     return;
   }
   if (introTween) {
-    const t = clamp((performance.now() - startedAt) / 1000 / introTween.duration, 0, 1);
+    const t = QA_MODE
+      ? clamp(simulation.elapsed / introTween.duration, 0, 1)
+      : clamp((performance.now() - startedAt) / 1000 / introTween.duration, 0, 1);
     const e = easeOutCubic(t);
     camera.position.lerpVectors(introTween.startPos, introTween.endPos, e);
     controls.target.lerpVectors(introTween.startTarget, introTween.endTarget, e);
@@ -1492,22 +1522,25 @@ drawDynoChart(simulation.rpm);
 updateTachometer(simulation.rpm);
 syncUI(true);
 
-let previousFrameTime = performance.now();
+let previousFrameTime = QA_MODE ? 0 : performance.now();
 let lastFpsCheck = 0;
 let fpsFrames = 0;
 
 function animate() {
   requestAnimationFrame(animate);
-  const now = performance.now();
-  const rawDt = (now - previousFrameTime) / 1000;
-  const dt = Math.min(0.35, rawDt);
-  const cameraDt = Math.min(0.1, rawDt);
-  previousFrameTime = now;
-  simulation.elapsed += dt;
 
-  updateSimulation(dt);
-  updateCamera(cameraDt);
-  updateTelemetryUI(dt);
+  if (!QA_MODE) {
+    const now = performance.now();
+    const rawDt = (now - previousFrameTime) / 1000;
+    const dt = Math.min(0.35, rawDt);
+    const cameraDt = Math.min(0.1, rawDt);
+    previousFrameTime = now;
+    simulation.elapsed += dt;
+
+    updateSimulation(dt);
+    updateCamera(cameraDt);
+    updateTelemetryUI(dt);
+  }
 
   if (hoverDirty && performance.now() - lastHoverCheck > 55 && cameraMode === 'orbit') {
     lastHoverCheck = performance.now();
@@ -1555,8 +1588,10 @@ async function boot() {
     bootText.textContent = 'RENDERER READY · CONTEXT PARTIAL';
   }
   bootStatus.classList.add('done');
-  startedAt = performance.now();
-  previousFrameTime = performance.now();
+  if (!QA_MODE) {
+    startedAt = performance.now();
+  }
+  previousFrameTime = QA_MODE ? 0 : performance.now();
   lastFpsCheck = performance.now();
   animate();
 }
@@ -1636,7 +1671,12 @@ window.__LLY__ = {
     syncUI(true);
   },
   render: (count = 1) => {
-    for (let i = 0; i < count; i++) updateSimulation(1 / 60);
+    for (let i = 0; i < count; i++) {
+      simulation.elapsed += 1 / 60;
+      updateSimulation(1 / 60);
+      updateCamera(1 / 60);
+      updateTelemetryUI(1 / 60);
+    }
     composer.render();
   },
 };

@@ -12,7 +12,10 @@
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
-    "test": "node --test"
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "baseline:capture": "node scripts/capture-numeric.mjs && node scripts/capture-browser.mjs",
+    "baseline:compare": "node scripts/compare-browser.mjs"
   },
   "dependencies": {
     "three": "0.186.1"
