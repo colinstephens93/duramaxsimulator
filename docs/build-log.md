@@ -1218,3 +1218,793 @@ The human approved the Phase 0 gate in the chat, after the FPS reading above. Th
 Open:
 - The human still needs to confirm that the FPS reading was taken without `?qa=1`.
 - Phase 1 starts with package 1.1.
+
+## 2026-10-31 · 1.1 LLY entry data
+
+Files: `src/engines/lly/index.js` (created); `docs/build-log.md` (changed). No other file changed. No module imports the entry yet. `copy` is not present.
+
+The entry keeps the code's values wherever the sheet differs:
+- Rod length `184` mm, with the research conflict recorded.
+- Calibration labels `Allison 1000 6-Spd Auto` and `ZF S6-650 6-Spd Manual`.
+- Compression strings `17.5:1 (2004\u201305) / 16.8:1 (2006)`, `16.8:1 (2006 Auto)`, and `17.5:1 (2004.5\u201305 Manual)`.
+- Preset button labels `STOP`, `WARM IDLE`, `PEAK TQ`, `PEAK HP`, `GOVERNOR`, and the separate toast labels from `applyPreset()`.
+- Boost peak `23` psi remains the design/contested value.
+
+Values checked against code: the LLY constant, calibration labels and ratings, bank layout, stations, throws, cylinder fire angles, firing order, valve timing, all curve points, the start sequence, telemetry gates, presets, audio base tone and max frame, and the walk clearances. A Node cross-check against `src/kinematics.js` passed.
+
+Provenance records (58):
+```text
+geometry.displacementCc = ["S01","S02"]
+geometry.displacementCid = ["S01","S02"]
+geometry.boreMm = ["S01","S02"]
+geometry.strokeMm = ["S01","S02"]
+geometry.crankRadiusMm = {"ids":["S01","S02"],"status":"derived"}
+geometry.rodLengthMm = {"ids":["S13","S14"],"status":"conflict","baseline":184}
+geometry.boreStrokeRatio = ["S01","S02"]
+geometry.envelopeIn = ["S01","S02"]
+geometry.massLb = ["S01","S02"]
+layout.banks = "design"
+layout.stationZmm = "design"
+layout.throwOffsetDeg = "design"
+layout.cylinders = "design"
+layout.firingOrder = ["S01","S02"]
+valvetrain.valvesPerCylinder = ["S01","S02"]
+valvetrain.totalValves = ["S01","S02"]
+valvetrain.timing = "design"
+features.glowPlugs = ["S01","S02"]
+ratings.idleRpm = ["S01","S02"]
+ratings.redlineRpm = ["S01","S02"]
+ratings.peakTorqueRpm = ["S01","S02"]
+ratings.peakPowerRpm = ["S01","S02"]
+ratings.peakTorqueLbFt = ["S01","S02","S04"]
+ratings.peakHp = ["S01","S02","S04"]
+ratings.calibrations.allison.peakTorqueLbFt = ["S01","S02","S04"]
+ratings.calibrations.allison.peakTorqueRpm = ["S01","S02"]
+ratings.calibrations.allison.peakHp = ["S01","S02","S04"]
+ratings.calibrations.allison.peakPowerRpm = ["S01","S02"]
+ratings.calibrations.allison.maxRailPsi = ["S01","S02"]
+ratings.calibrations.zf.peakTorqueLbFt = ["S01","S02"]
+ratings.calibrations.zf.peakTorqueRpm = ["S01","S02"]
+ratings.calibrations.zf.peakHp = ["S01","S02"]
+ratings.calibrations.zf.peakPowerRpm = ["S01","S02"]
+ratings.calibrations.zf.maxRailPsi = ["S01","S02"]
+ratings.presets = "design"
+curves.torque = "design"
+curves.rail = "design"
+curves.boost = "design"
+curves.boost.capPsi = {"ids":["S06","S31"],"status":"contested","label":"design"}
+curves.vane = "design"
+curves.egt = "design"
+curves.oil = "design"
+curves.coolant = "design"
+turbo.compressorInducerMm = ["S06"]
+turbo.compressorExducerMm = ["S06"]
+turbo.compressorBlades = ["S06","S04"]
+turbo.turbineInducerMm = ["S06"]
+turbo.turbineExducerMm = ["S06"]
+turbo.turbineBlades = ["S06"]
+turbo.vaneHeightMm = {"ids":["S06","S04"],"status":"conflict","baseline":14.4}
+turbo.boostPeakPsi = {"ids":["S06","S31"],"status":"contested","label":"design"}
+telemetry.gates = "design"
+telemetry.notFiring = "design"
+startSequence = "design"
+audio = "design"
+walk = "design"
+dyno = "design"
+oil.capacityUsQt = ["S01","S02"]
+```
+
+Nulls: none. The sheet's null gaps are not entry fields: valve lift and cam duration are code design estimates, the 2004-2005 nozzle hole count is absent, and starter details, dry/wet weight and cylinder spacing are not used by the app. No null was needed.
+
+Values not found in code or sheet:
+- `dyno.ratedLbFt = 1000` and `dyno.maxRpm = 4000` are design values from plan section 5; no matching code or research-sheet values exist.
+- `identity.accuracy = "rated-peaks"` and the `audio.bankCadence`, `turboWhistle`, and `injectorKnock` flags come from the plan sketch as design/structure, not from a code constant or the research sheet.
+- No numeric value is absent from both the code and the sheet apart from the two test-cell dyno values above.
+
+Choices beyond the package text:
+- Calibrations are keyed by id, matching `CALIBRATIONS` in `src/kinematics.js` and the plan's id-based provenance paths.
+- Presets keep both the button label and the `applyPreset()` toast label, preserving both current strings for package 2.4.
+- Added the wall, dyno and max-hop walk values from `src/collision.js`, beyond the sketch's single clearance radius.
+- Added the small non-numeric `features`, `inspect` and `oil` data needed by later phases.
+- Left out `copy`, `look` and `explode`: `copy` is package 1.2; the presentation-only look/explode data is not in package 1.1's named value list and remains in the family until package 2.3.
+- Grouped design values use parent-path provenance records (for example `startSequence`, `telemetry.gates`, `audio`, `walk`, `dyno`, `curves.torque`), as the package treats a curve table/start sequence as one value.
+
+Test output:
+```text
+npm test
+...
+ℹ tests 142
+ℹ suites 28
+ℹ pass 142
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 283.8099
+```
+
+Check output:
+```text
+npm run check
+Names: FAIL (215 matches in 154 lines)
+Numbers: FAIL (52 matches in 46 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: FAIL (1 match in 1 line)
+  Entry files exist; full numeric provenance validation is not implemented in this package.
+  src/engines/lly/index.js:1: entry
+Result: FAIL (3 of 5 checks failed: Names, Numbers, Provenance)
+[exit code: 1]
+```
+
+Judgement calls:
+- The numeric-leaf audit found 258 numbers outside `provenance`; all are covered by the 58 records.
+- The provenance stub fails exactly as expected; package 1.1b will replace it.
+- No `src/` module imports the entry yet.
+- The existing Phase 0 commit and `phase-0-done` tag were not changed.
+
+Open:
+- Package 1.1b replaces the provenance stub.
+- Package 1.2 adds `copy.js`.
+- No commit was made and no tag was created in 1.1.
+- Package 1.1b has not been started.
+
+## 2026-10-31 · 1.1b Look, explode and the provenance check
+
+Files: `src/engines/lly/index.js` (changed); `scripts/check.mjs` (changed); `docs/build-log.md` (changed). No other file changed. `copy` and `decals` remain absent.
+
+Values added:
+- `look.palette.block = 0x2c312e` from `src/engine.js:101`.
+- `look.palette.head = 0xb2b8b3` from `src/engine.js:107`.
+- `explode.cutawayFraction = 0.45` from `EXPLODE_CUTAWAY_FRACTION` at `src/engine.js:52`.
+- `explode.offsets`, sixteen explicit assembly offsets:
+```text
+rotating    [0, -105, 0]
+main-caps   [0, -225, 0]
+camshaft    [0, 95, 0]
+head-R      [-195, 195, 0]
+head-L      [195, 195, 0]
+cover-R     [-335, 335, 0]
+cover-L     [335, 335, 0]
+exhaust-R   [-290, 95, 0]
+exhaust-L   [290, 95, 0]
+oil-pan     [0, -355, 0]
+oil-filter  [230, -70, 0]
+front-drive [0, 15, 290]
+turbo       [0, 310, -250]
+intake      [0, 340, 40]
+egr         [-230, 260, -90]
+fuel        [0, 220, 110]
+```
+
+The ten offsets named in the package are joined by six more that `_applyExplode` also uses: `head-R`, `head-L`, `cover-R`, `cover-L`, `exhaust-R` and `exhaust-L`. `_applyExplode` at `src/engine.js:4134-4146` moves every `explodeGroups` entry by its stored `g.offset`, and `makeAssembly` adds those six to that list at `src/engine.js:1228`, `:1250` and `:2656`.
+
+Provenance records added:
+- `look.palette = "design"`, covering both palette colours.
+- `explode.cutawayFraction = "design"`.
+- `explode.offsets = "design"`, covering all sixteen offset arrays.
+
+Provenance checker:
+- Replaced the stub in `scripts/check.mjs`.
+- Imports each non-`families`/`shared` entry through `pathToFileURL(entryPath).href`.
+- Counts numeric leaves, with each `curves.<name>` table counted as one value.
+- A record covers its exact path and every descendant path.
+- Every record path must exist in the entry; every ID must come from `docs/research/sources.md`.
+- A record must carry IDs or a `design`/`derived` label.
+- Nulls must have a record marked as a sheet gap. There are no nulls.
+- Per-entry output is printed.
+
+Checker output:
+```text
+npm run check
+Names: FAIL (215 matches in 154 lines)
+Numbers: FAIL (52 matches in 46 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: PASS (0 matches)
+  lly: 197 values, 61 records, 0 without record
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+[exit code: 1]
+```
+
+The names and numbers checks match 0.8: 215 matches in 154 lines and 52 matches in 46 lines. Encoding and IDs also match. Provenance changed from FAIL to PASS.
+
+Test output:
+```text
+npm test
+...
+ℹ tests 142
+ℹ suites 28
+ℹ pass 142
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 279.2629
+```
+
+Judgement calls:
+- Included all sixteen explode groups that `_applyExplode` moves, not just the ten literal offsets listed in the package.
+- Used parent-path design records for the palette, the cutaway fraction and the offset table, as allowed by the path coverage rule.
+- Kept the scene's decal text out of `look`; package 1.2 owns copy.
+- The checker treats each curve table as one value, so no curve point needs its own record.
+- No nulls were present, so the gap rule was not exercised by LLY.
+
+Open:
+- Package 1.2 adds `copy.js` and the decals.
+- No commit was made and no tag was created.
+- Package 1.2 has not been started.
+
+## 2026-10-31 · 1.2 LLY spec copy
+
+Files: `src/engines/lly/copy.js` (created); `src/specs.js` (changed); `src/engines/lly/index.js` (changed); `.qa/copy-before.json` and `.qa/copy-after.json` (created, git-ignored); `docs/build-log.md` (changed). No tests, baselines, check scripts or other source files changed.
+
+Snapshot:
+- Before: `.qa/copy-before.json`, 46,173 bytes, SHA-256 `1438B2C3341019F45D32402F74121E2403411E94438E3D463ECDD0CBFA97050A`.
+- After: `.qa/copy-after.json`, 46,173 bytes, same SHA-256.
+- The two snapshots are byte-identical.
+
+The move:
+- `copy.js` has no imports and exports `COMPONENT_CARDS` with all 38 cards in the original `block` to `dyno` order.
+- `pistonCard(number, bankLabel)` and `rodCard(number, bankLabel)` return the same objects the loop built, including the `piston-${number}` and `rod-${number}` IDs.
+- `engineSummary(firingOrder)` returns the five summary strings with keys `displacement`, `firingOrder`, `peakTorque`, `peakPower`, `governed`.
+- `specs.js` now has only the two imports, the `specsByNumber` loop, `COMPONENT_SPECS = { ...COMPONENT_CARDS, ...specsByNumber }`, the existing `getSpec`, `INSPECTABLE_IDS`, and `ENGINE_SPEC_SUMMARY = engineSummary(LLY.firingOrder.join('-'))`.
+- `index.js` has `copy: () => import('./copy.js')` as its last key after `provenance`.
+
+Before check:
+```text
+Names: FAIL (215 matches in 154 lines)
+Numbers: FAIL (52 matches in 46 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: PASS (0 matches)
+  lly: 197 values, 61 records, 0 without record
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+After check:
+```text
+Names: FAIL (173 matches in 126 lines)
+Numbers: FAIL (43 matches in 37 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: PASS (0 matches)
+  lly: 197 values, 61 records, 0 without record
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+Why the counts moved:
+- The 38 spec cards and their copy moved out of `src/specs.js` and under `src/engines/`, which the names and numbers checks skip.
+- `src/specs.js` now keeps three name matches: the `LLY` import on line 1, the new `./engines/lly/copy.js` path on line 2, and the `LLY.firingOrder` line. The new import path is the one added match the package predicted.
+- The nine number matches in `src/specs.js` are gone because the spec text that contained them is now under `src/engines/`.
+
+Engine summary:
+- The five strings moved into `engineSummary(firingOrder)`.
+- The key order is unchanged, and the firing order is passed in from `LLY.firingOrder.join('-')`, so the pre/post snapshot and app text are identical.
+
+Tests and build:
+```text
+npm test
+...
+ℹ tests 142
+ℹ suites 28
+ℹ pass 142
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 271.785
+```
+
+```text
+npm run build
+✓ 36 modules transformed.
+dist/index.html                    21.43 kB │ gzip:   5.86 kB
+dist/assets/index-Ce0JMQIe.css     34.94 kB │ gzip:   8.01 kB
+dist/assets/index-DLn62EAZ.js   1,285.28 kB │ gzip: 402.36 kB
+✓ built in 232ms
+```
+
+Judgement calls:
+- Moved the text with a Node UTF-8 transform, not PowerShell.
+- Kept the original card order and every object's key order; the snapshot confirms the runtime values are unchanged.
+- Kept `getSpec` and `INSPECTABLE_IDS` byte-for-byte in behavior and position.
+- Added the copy loader as the final entry key.
+- The acceptance check counts match the package's expected 173/126 and 43/37; there is no unexplained difference.
+- No failure remained in the acceptance commands.
+
+Open:
+- Package 1.3 has not been started.
+- No commit was made and no tag was created.
+
+## 2026-10-31 · 1.3 Modules read the entry
+
+Files: `src/kinematics.js`, `src/engine.js`, `src/specs.js`, `src/collision.js`, `src/audio.js`, `src/main.js` and `docs/build-log.md`. No entry, copy, test, baseline, script or check file changed.
+
+Re-pointed names:
+| File | Name | Entry path |
+| --- | --- | --- |
+| `src/kinematics.js` | `LLY` (24 keys, same order) | `identity.name`, `identity.code`, `identity.configuration`; `geometry.*`; `layout.firingOrder`; `ratings.*`; `valvetrain.*`; `oil.capacityUsQt`; `identity.assembly` |
+| `src/kinematics.js` | `CALIBRATIONS` | `ratings.calibrations.allison` and `.zf` |
+| `src/kinematics.js` | `STATION_Z` | `layout.stationZmm` |
+| `src/kinematics.js` | `BANK_Z_OFFSET` | `layout.banks[].bankOffsetZmm` |
+| `src/kinematics.js` | `STATION_THROW_OFFSET` | `layout.throwOffsetDeg` |
+| `src/kinematics.js` | `CYLINDERS` | `layout.cylinders` and `layout.banks` |
+| `src/kinematics.js` | `VALVE_TIMING` | `valvetrain.timing` |
+| `src/engine.js` | `EXPLODE_CUTAWAY_FRACTION` | `explode.cutawayFraction` |
+| `src/specs.js` | `ENGINE_SPEC_SUMMARY` | `layout.firingOrder` |
+| `src/collision.js` | `WALL_CLEARANCE` | `walk.wallClearanceM` |
+| `src/collision.js` | `DYNO_CLEARANCE` | `walk.dynoClearanceM` |
+| `src/collision.js` | `ENGINE_WALK_RADIUS` | `walk.clearanceRadiusM` |
+| `src/collision.js` | `MAX_HOP` | `walk.maxHopM` |
+| `src/audio.js` | `MAX_RPM` | `ratings.redlineRpm` |
+| `src/audio.js` | `MAX_PULSE_FRAME_S` | `audio.maxFrameS` |
+| `src/main.js` | `MAX_RPM` | `ratings.redlineRpm` |
+
+`CYLINDERS` keeps the same five base keys and the same appended keys: `number`, `bank`, `station`, `fireAngle`, `bankLabel`, `id`, `z`, `throwOffset`, `bankRotationDeg`, `bankAxisDeg`. `CALIBRATIONS` keeps the seven keys `id`, `label`, `shortLabel`, `peakTorqueLbFt`, `peakHp`, `maxRailPsi`, `compressionRatio`. The `LLY` key order is unchanged.
+
+Values check:
+- An in-memory comparison of `INSPECTABLE_IDS`, every `getSpec(id)` and `ENGINE_SPEC_SUMMARY` matched `.qa/copy-before.json`.
+- No entry value was missing.
+
+Before check:
+```text
+Names: FAIL (173 matches in 126 lines)
+Numbers: FAIL (43 matches in 37 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: PASS (0 matches)
+  lly: 197 values, 61 records, 0 without record
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+After check:
+```text
+Names: FAIL (246 matches in 181 lines)
+Numbers: FAIL (38 matches in 32 lines)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+Provenance: PASS (0 matches)
+  lly: 197 values, 61 records, 0 without record
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+Per-file counts, matches before → after:
+| File | Names | Numbers |
+| --- | --- | --- |
+| `src/kinematics.js` | 30 → 86 (+56) | 18 → 15 (−3) |
+| `src/engine.js` | 58 → 61 (+3) | 1 → 1 (0) |
+| `src/specs.js` | 3 → 4 (+1) | 0 → 0 (0) |
+| `src/collision.js` | 0 → 6 (+6) | 0 → 0 (0) |
+| `src/audio.js` | 8 → 12 (+4) | 1 → 0 (−1) |
+| `src/main.js` | 27 → 30 (+3) | 11 → 10 (−1) |
+| Six changed files | 126 → 199 (+73) | 31 → 26 (−5) |
+| All other files | 47 → 47 (0) | 12 → 12 (0) |
+| Total | 173 → 246 (+73) | 43 → 38 (−5) |
+
+Why the counts moved:
+- `kinematics.js` gains 56 name matches because the entry mappings spell `lly.` on every field, and its import path adds another. It loses three number matches: the old `peakHpRpm` 3,000, `redlineRpm` 3,250 and Allison `maxRailPsi` 26,000 are now entry references.
+- `engine.js` gains three name matches from `import lly`, the `lly` path and `lly.explode...`; its one number match is unaffected.
+- `specs.js` gains one name match: the new `lly` entry import replaces the old `LLY` import, while the copy path and firing-order line remain.
+- `collision.js` gains six name matches from the import and the four `lly.walk` references.
+- `audio.js` gains four name matches from the import and two constants, and loses its 3,250 literal.
+- `main.js` gains three name matches from the import and `MAX_RPM`, and loses its 3,250 literal.
+- All other files are unchanged, so their 47 names and 12 numbers are unchanged.
+
+Tests, baseline and build:
+```text
+npm test
+...
+ℹ tests 142
+ℹ suites 28
+ℹ pass 142
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 298.586
+```
+
+Before baseline: Trace PASS, Geometry PASS, all six views 0 changed (>8), 0 differ at all.
+
+After baseline: Trace PASS, Geometry PASS; `home` had 0 changed (>8), 1 pixel differing at all with channel delta 1; the other five views had 0 changed and 0 differ. All six PASS. The single delta-1 pixel is below the pass threshold and no trace or geometry value moved.
+
+```text
+npm run build
+✓ 38 modules transformed.
+dist/index.html                    21.43 kB │ gzip:   5.86 kB
+dist/assets/index-Ce0JMQIe.css     34.94 kB │ gzip:   8.01 kB
+dist/assets/index-DrU0MNBt.js   1,295.12 kB │ gzip: 405.56 kB
+✓ built in 530ms
+```
+
+Vite reports `INEFFECTIVE_DYNAMIC_IMPORT` because `copy.js` is both dynamically imported by the entry and statically imported by `specs.js`. It is a warning, not a build failure, and was not changed in this package.
+
+Phase 2 checklist — entry values still in place:
+- `src/kinematics.js`: `torqueAtRpm` at 246, `railPressureAtRpm` at 297, `boostAtRpm` at 322, `vaneAtRpm` at 347, `egtAtRpm` at 370, `oilPressureAtRpm` at 375, `coolantAtRpm` at 380. Their curve tables and formulas remain inside those bodies.
+- `src/engine.js`: palette at 102 and 108; explode offsets at the `makeAssembly` calls on lines 582, 1017, 1140, 1229, 1251, 2152, 2228, 2347, 2657, 2785, 3170, 3350 and 3483.
+- `src/audio.js`: 45.3 Hz firing tone at 117; boost normalization `/ 23` at 425, 450 and 476.
+- `src/main.js`: idle and preset 680 values at 206-207, 271 and 299; start-up values at 279 and 323-355; tach red band at 794, 819 and 860; rail gauge scale 26,000 at 1030; preset labels and values at 1278 and 1454.
+- `src/specs.js`: no entry literals remain; the copy text is in `src/engines/lly/copy.js`.
+- `src/collision.js`: no entry literals remain; `EPS`, `CONSOLE_BLOCK`, `PASSES` and `SETTLE` are not entry values.
+
+Judgement calls:
+- Kept the `CYLINDERS` derived construction in two maps so the base keys stay in the original order and the appended keys keep `id`, `z`, `throwOffset`, `bankRotationDeg`, `bankAxisDeg`.
+- Used direct entry references for the `LLY` arrays and bank data.
+- Left every function-body, class-body and state-object literal in place for Phase 2.
+- No value, name, key order or type changed.
+- One home-view pixel had a channel delta of 1; all changed-pixel counts stayed at 0 and every view passed.
+
+Open:
+- Package 1.4 has not been started.
+- No commit was made and no tag was created.
+
+## 2026-11-01 · 1.4 Research references
+
+Files: `docs/agent-runbook.md`, `docs/engine-library-plan.md` and `docs/build-log.md`. No code, test, baseline, script or check file changed; no file moved; no entry value changed.
+
+### Part A: premise checks
+
+1. `lly_report.md` is at the repository root: PASS. It is 7,716 bytes.
+2. The S31 row in `docs/research/sources.md` names `lly_report.md`: PASS, line 41.
+3. `docs/research/lly.md` cites S31 in six table rows: PASS, lines 26, 40, 55, 56, 58 and 99.
+4. `src/engines/lly/` has no match for `research`, `lly.md` or `lly_report`: PASS. The provenance records cite S31 by ID.
+5. Every README link to `lly_report.md` or `docs/research/lly.md` resolves: PASS. Four links were checked, at README lines 303, 305 and 365: two to `docs/research/lly.md` and two to `lly_report.md`. The table cell at line 293 is inline code, not a link.
+
+### Part B: sentence corrections
+
+`docs/agent-runbook.md` line 115:
+
+Before:
+```text
+- **1.4** Keep `lly_report.md` at the root. The provenance records cite `docs/research/lly.md` and source S31.
+```
+
+After:
+```text
+- **1.4** Keep `lly_report.md` at the root. The provenance records cite source S31 by ID. `docs/research/sources.md` lists S31 as `lly_report.md`, and `docs/research/lly.md` cites S31.
+```
+
+`docs/engine-library-plan.md` line 325:
+
+Before:
+```text
+- `lly_report.md` stays at the root. The provenance records cite [research/lly.md](research/lly.md), which cites it.
+```
+
+After:
+```text
+- `lly_report.md` stays at the root. The provenance records cite source S31 by ID, and [research/lly.md](research/lly.md) also cites S31.
+```
+
+### Part C: rebuilt Phase 2 checklist
+
+This checklist was rebuilt from the six modules at current line numbers. A curve table is one entry value. "Phase 2 move" means the literal should be replaced by the entry value in Phase 2. "Stays" means it is not an entry value. "Open" marks a decision that needs a later package.
+
+#### Ratings, presets, telemetry and start-up
+
+| File:line | Value | Enclosing function | Control |
+| --- | --- | --- | --- |
+| `main.js:206-207` | `680` (`desiredRpm`, `lastRpmTarget`) | `simulation` state object | Phase 2 move — `ratings.idleRpm` |
+| `main.js:271` | `680` | `startEngine` | Phase 2 move — `ratings.idleRpm` |
+| `main.js:299` | `680` | `toggleEngine` | Phase 2 move — `ratings.idleRpm` |
+| `main.js:1635` | `680` | `window.__LLY__.setFixture` | Phase 2 move — `ratings.idleRpm` |
+| `main.js:340` | `1600` | `updateSimulation` | Phase 2 move — `startSequence.rampDamping.aboveRpm` |
+| `main.js:347` | `2200` | `updateSimulation` | Phase 2 move — `startSequence.runDamping.aboveRpm` |
+| `main.js:390` | `23` | `updateSimulation` | Phase 2 move — `turbo.boostPeakPsi`, boost cap |
+| `main.js:387-394` | `150`, `30`, `38`, `0.02`, `50`, `38` | `updateSimulation` | Phase 2 move — `telemetry.gates`, `telemetry.notFiring` |
+| `main.js:794` | `3000` | `buildTachometer` | Phase 2 move — `ratings.peakPowerRpm`, tach red band |
+| `main.js:819` | `3000` | `buildTachometer` | Phase 2 move — tach red band |
+| `main.js:860` | `3000` | `updateTachometer` | Phase 2 move — tach marker |
+| `main.js:1030` | `26000` | `updateTelemetryUI` | Phase 2 move — Allison `maxRailPsi`; check the ZF gauge scale in 2.4 |
+| `main.js:1031` | `23` | `updateTelemetryUI` | Phase 2 move — `turbo.boostPeakPsi`, boost bar |
+| `main.js:1065` | `3200` | `updateTelemetryUI` | Open decision 2.4 — `GOVERNED` label. The entry has no 3200; plan line 123 gives 3,200 as the LBZ power peak |
+| `main.js:1278` | `680`, `1600`, `3000`, `3250` and labels | `applyPreset` | Phase 2 move — `ratings.presets`; labels are 2.4 copy |
+| `main.js:1454` | `0`, `680`, `1600`, `3000`, `3250` | `bindControls` keydown handler | Phase 2 move — `ratings.presets` |
+| `main.js:1574` | `3200` | `animate` | Open decision 2.4 — toast duration. This is UI timing, not an engine value |
+| `main.js:279` | `0.85` | `startEngine` | Phase 2 move — `startSequence.glow.onStart` |
+| `main.js:324-355` | `0.55`, `190`, `4.7`, `6`, `1.25`, `520`, `3.1`, `4`, `2.05`, `2.2`, `2.4`, `2.25`, `1.08`, `1.35`, `2.8`, `0.98`, `1.42`, `3`, `1.05`, `3.5`, `1.5` | `updateSimulation` | Phase 2 move — `startSequence` |
+
+#### Curves
+
+| File:line | Value | Enclosing function | Control |
+| --- | --- | --- | --- |
+| `kinematics.js:246-290` | Torque table: 40 rpm cutoff; ZF 13 pairs ending 3250/488; Allison 13 pairs ending 3250/512; peaks 520 and 605 at 1600 | `torqueAtRpm` | Phase 2 move — `curves.torque` |
+| `kinematics.js:293-295` | `5252` | `horsepowerAtRpm` | Stays — horsepower formula constant, not an entry value |
+| `kinematics.js:297-320` | 25 rpm cutoff; `23000 / 26000` ZF scale; eight pairs; 26000 return | `railPressureAtRpm` | Phase 2 move — `curves.rail`, calibrations `maxRailPsi` |
+| `kinematics.js:322-345` | 120 rpm cutoff; nine pairs; 23.0 at 3000; 21.6 at 3250; 21.6 return | `boostAtRpm` | Phase 2 move — `curves.boost` |
+| `kinematics.js:347-368` | 30 rpm cutoff; seven pairs; 82 at 500; 20 at 3250; 20 return; `round` | `vaneAtRpm` | Phase 2 move — `curves.vane` |
+| `kinematics.js:370-373` | `30`, `38`, `232`, `510`, `3250`, `0.72` | `egtAtRpm` | Phase 2 move — `curves.egt` |
+| `kinematics.js:375-378` | `20`, `0`, `22`, `38`, `1800` | `oilPressureAtRpm` | Phase 2 move — `curves.oil` |
+| `kinematics.js:380-382` | `88`, `3250`, `4` | `coolantAtRpm` | Phase 2 move — `curves.coolant` |
+
+#### Audio
+
+| File:line | Value | Enclosing function | Control |
+| --- | --- | --- | --- |
+| `audio.js:117` | `45.3` | `TestCellAudio` constructor | Phase 2 move — `audio.baseToneHz` |
+| `audio.js:425`, `450`, `476` | `23` | `TestCellAudio.update` | Phase 2 move — `turbo.boostPeakPsi` normalization |
+| `audio.js:122` | `22.65` | `TestCellAudio` constructor | Stays — derived half of 45.3, not an entry value |
+
+The audio flags `bankCadence`, `turboWhistle` and `injectorKnock` have no remaining literal; they are entry-only design flags. `MAX_RPM` and `MAX_PULSE_FRAME_S` are already entry references.
+
+#### Walk
+
+No entry value remains in `collision.js`. `WALL_CLEARANCE`, `DYNO_CLEARANCE`, `ENGINE_WALK_RADIUS` and `MAX_HOP` are entry references. `EPS`, `CONSOLE_BLOCK`, `PASSES` and `SETTLE` are not entry values and stay.
+
+#### Explode
+
+All sixteen offsets are Phase 2 moves to `explode.offsets`.
+
+| File:line | Assembly | Offset | Enclosing function |
+| --- | --- | --- | --- |
+| `engine.js:582` | `rotating` | `[0, -105, 0]` | `_buildRotatingAssembly` |
+| `engine.js:1017` | `main-caps` | `[0, -225, 0]` | `_buildMainCaps` |
+| `engine.js:1140` | `camshaft` | `[0, 95, 0]` | `_buildCamshaft` |
+| `engine.js:1228-1229` | `head-R` / `head-L` | `[-195, 195, 0]` / `[195, 195, 0]` | `_buildHeadsAndValvetrain` |
+| `engine.js:1250-1251` | `cover-R` / `cover-L` | `[-335, 335, 0]` / `[335, 335, 0]` | `_buildHeadsAndValvetrain` |
+| `engine.js:2152` | `oil-pan` | `[0, -355, 0]` | `_buildOilPan` |
+| `engine.js:2228` | `oil-filter` | `[230, -70, 0]` | `_buildOilFilter` |
+| `engine.js:2347` | `front-drive` | `[0, 15, 290]` | `_buildFrontDrive` |
+| `engine.js:2657` | `exhaust-R` / `exhaust-L` | `[-290, 95, 0]` / `[290, 95, 0]` | `_buildExhaustManifolds` |
+| `engine.js:2785` | `turbo` | `[0, 310, -250]` | `_buildTurbo` |
+| `engine.js:3170` | `intake` | `[0, 340, 40]` | `_buildIntake` |
+| `engine.js:3350` | `egr` | `[-230, 260, -90]` | `_buildEGR` |
+| `engine.js:3483` | `fuel` | `[0, 220, 110]` | `_buildFuelSystem` |
+
+`block`, `ancillaries` and `mounts` have no explode offset. `explode.cutawayFraction` is already an entry reference. `XRAY_PICK_THRESHOLD = 0.35` at `engine.js:55` is not an entry value and stays.
+
+#### Look and colours
+
+| File:line | Value | Material / use | Enclosing function | Class |
+| --- | --- | --- | --- | --- |
+| `engine.js:102` | `0x2c312e` | block | `_buildMaterials` | Phase 2 move — `look.palette.block` |
+| `engine.js:108` | `0xb2b8b3` | head | `_buildMaterials` | Phase 2 move — `look.palette.head` |
+| `engine.js:105` | `0x202422` | `blockDark` | `_buildMaterials` | Open 2.3 — look |
+| `engine.js:111` | `0x1a1f1c` | `cover` | `_buildMaterials` | Open 2.3 — look |
+| `engine.js:118` | `0x5b5e59` | `liner` | `_buildMaterials` | Open 2.3 — look |
+| `engine.js:2350` | `0x888f8a` | front cover | `_buildFrontDrive` | Open 2.3 — look |
+| `engine.js:3173` | `0x919792` | intake | `_buildIntake` | Open 2.3 — look |
+| `engine.js:1763` | `0xff9b45` | combustion glow sprite | `_buildCombustionGlow` | Open 2.3 — effect |
+| `engine.js:1845` | `0xffb24f` | injector glow | `_buildInjectors` | Open 2.3 — effect |
+| `engine.js:2276` | `0x1b4d70` | oil-filter cap | `_buildOilFilter` | Open 2.3 — look |
+| `engine.js:2922` | `0x252b28` | turbo inlet screen | `_buildTurbo` | Open 2.3 — look |
+
+The nine colours not held by `look.palette` are `0x202422`, `0x1a1f1c`, `0x5b5e59`, `0x888f8a`, `0x919792`, `0xff9b45`, `0xffb24f`, `0x1b4d70` and `0x252b28`. They are classified as above. The open decision is whether the look colours join `look.palette` and whether the two glow colours remain effect constants.
+
+The other colour literals in the six modules are decal text colours and main.js UI/outline colours. They are copy/UI effects, not `look.palette` values and not entry moves. The main.js UI/outline literals are at lines 121, 184-185, 650-651, 679-680 and 982.
+
+#### Engine rating and build warning
+
+| File:line | Value | Enclosing function | Control |
+| --- | --- | --- | --- |
+| `engine.js:4271` | `3250` | `EngineBuilder.update` | Phase 2 move — `ratings.redlineRpm`; plan line 29 lists this at the old line 4270 |
+
+Vite reports `INEFFECTIVE_DYNAMIC_IMPORT` for `src/engines/lly/copy.js`: the entry's `copy()` loader is unused and `src/specs.js` imports `copy.js` statically. This is not an engine value. Natural fix: Phase 3.1.
+
+#### Open decisions
+
+- 2.3: classify the nine non-palette engine colours as look or effect; decide which join `look.palette`.
+- 2.4: the `GOVERNED` label at 3200 rpm and the 3200 ms adaptive-quality toast. The entry has no 3200 value; plan line 123 identifies 3,200 as the LBZ power peak.
+- 3.1: remove the ineffective dynamic import by resolving the copy loader/static import split.
+
+No entry-owned dimension literal remains in this checklist besides the explode offsets and palette values, which are Phase 2 moves. Engine geometry dimensions remain outside this checklist and stay.
+
+### Acceptance
+
+`npm test`: 142 tests, 28 suites, 142 passed, 0 failed (296.9713 ms).
+
+`npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8), 0 differ at all, largest channel delta 0. Console errors: none.
+
+`npm run build`: passed, 38 modules, 262 ms; CSS 34.94 kB, JS 1,295.12 kB. The `INEFFECTIVE_DYNAMIC_IMPORT` warning remains.
+
+`npm run check`: Names 246 matches in 181 lines; Numbers 38 matches in 32 lines; Encoding PASS; IDs PASS; Provenance PASS (`lly`: 197 values, 61 records, 0 without record); overall FAIL 2/5 on Names and Numbers, as expected.
+
+Git state: `docs/engine-library-plan.md` is now modified, alongside the earlier package changes. The plan diff is one changed line (`2 +-`). The runbook diff is `5 +++--`: one line is this 1.4 correction, and the other lines are the earlier uncommitted 1.1/1.1b runbook edits. No code, test, baseline, script or check changed in 1.4.
+
+Open:
+- Package 1.5 has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-01 · 1.1c Look text and colours in the entry
+
+Files: `src/engines/lly/index.js` and `docs/build-log.md`. No other file changed. No code, test, baseline, script or check changed; no file moved; no existing entry value changed.
+
+### Before/after SHA-256
+
+| File | Before | After |
+| --- | --- | --- |
+| `src/engine.js` | `833A738707DA6F67407AD649D7EA488DE19EA9A1260A9B0090482E682AB1FDDB` | same |
+| `src/kinematics.js` | `1679B12385FE86F80D63C62E6B0954C8EC1075BBF704A3A95E696979F61842B4` | same |
+| `src/audio.js` | `05D98733A46FDB5A5678F189D352C76AC2F7E1EC867D6E18F65586BC718FD044` | same |
+| `src/collision.js` | `744318490B4E32A8796BB7770AF212DE2F972A2D142486D920F8ADD0CDBFC31A` | same |
+| `src/main.js` | `FA8FF712372FBA08620197453EFCABF5C7A1B2224B63907078E70CEE7D06599A` | same |
+| `src/specs.js` | `B30CD8E66A14465CE344ED36D8420399286DE94A298304277228403EC2A6639C` | same |
+| `src/engines/lly/index.js` | `9AB395BF825C92D04ADE9B8F74170BA76A04D7ABE118CCC1BCF2A692172431CA` | `6296E2AEB0A91CFF61A8D1835485C810AC7FB2A2DE572B3529E61652BBE6E538` |
+
+Only the entry hash changed.
+
+### Added to the entry
+
+- `identity.sceneName = 'Duramax LLY 6600'`.
+- `look.palette` gained seven colours beside `block` and `head`:
+  - `blockDark: 0x202422`
+  - `cover: 0x1a1f1c`
+  - `liner: 0x5b5e59`
+  - `frontCover: 0x888f8a`
+  - `intake: 0x919792`
+  - `oilFilterCap: 0x1b4d70`
+  - `turboScreen: 0x252b28`
+- `look.effects`:
+  - `combustionGlow: 0xff9b45`
+  - `injectorGlow: 0xffb24f`
+- Provenance record `'look.effects': 'design'`.
+- `look.decals`, 41 specs in 23 surface groups, in file order:
+
+| Group | Specs |
+| --- | ---: |
+| `block` | 2 |
+| `serialPlate` | 2 |
+| `timingCover` | 1 |
+| `head` | 1 |
+| `injectors` | 2 |
+| `valveCover` | 2 |
+| `coverCaution` | 2 |
+| `oilPan` | 2 |
+| `oilFilter` | 3 |
+| `oilFilterPlate` | 2 |
+| `alternator` | 1 |
+| `exhaustManifold` | 2 |
+| `exhaustShield` | 2 |
+| `turboPlaque` | 2 |
+| `turboIdPlate` | 2 |
+| `turboBosch` | 1 |
+| `intake` | 2 |
+| `chargePipe` | 2 |
+| `egr` | 1 |
+| `egrCooler` | 2 |
+| `cp3` | 2 |
+| `cp3Top` | 1 |
+| `fuelRail` | 2 |
+| **Total** | **41** |
+
+Only the 41 literal `text: '...'` label specs were copied. Dynamic labels such as `MAIN 0${…}`, `idText`, `headLabel`, `bankText`, the I/E rocker mark and the passenger/driver bank text are not among the 41 and stay in `src/engine.js`.
+
+### Acceptance audits
+
+- Every `look.decals` text, font and colour string occurs exactly in `src/engine.js`: 0 misses.
+- Entry decal spec count: 41.
+- `text: '...'` literal count in `src/engine.js`: 41.
+- Spec multiset differences between entry and engine: 0.
+- All nine new colours are present in `src/engine.js` as the same hex literal: 9 of 9.
+
+The insert used a Node UTF-8 transform that read the source label objects and wrote the entry; no string was retyped.
+
+### Tests and checks
+
+`npm test`: 142 tests, 28 suites, 142 passed, 0 failed (337.3403 ms).
+
+`npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8), 0 differ at all, largest channel delta 0. Console errors: none.
+
+`npm run build`: passed, 38 modules, 527 ms; CSS 34.94 kB, JS 1,298.78 kB.
+
+`npm run check`: Names 246 matches in 181 lines; Numbers 38 matches in 32 lines; Encoding PASS; IDs PASS; Provenance PASS (`lly`: 206 values, 62 records, 0 without record). Overall FAIL 2/5 on Names and Numbers, as expected. The new counts are 206 values and 62 records, up from 197 and 61 by the nine colours and one `look.effects` record.
+
+### Checklist corrections
+
+- The 1.4 checklist said decal colours were not entry moves. That was wrong. Decal text, fonts and colours now live in `look.decals`. Only placements and canvas sizes stay in `src/engine.js` until Phase 2.3.
+- `src/audio.js:122` (`22.65` Hz, bank cadence) is a Phase 2 move, derived as `audio.baseToneHz / 2`. The 1.4 checklist marked it "Stays".
+
+### Names section for the Phase 2 exit
+
+The six modules contribute 199 of the 246 Names matches; the other 47 are in `index.html`, `src/environment.js` and `src/styles.css`. The six-module counts by file and kind:
+
+| File | Engine identity | Transmission | Supplier/part | Plant | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `src/kinematics.js` | 63 | 23 | 0 | 0 | 86 |
+| `src/engine.js` | 25 | 0 | 31 | 5 | 61 |
+| `src/specs.js` | 4 | 0 | 0 | 0 | 4 |
+| `src/collision.js` | 6 | 0 | 0 | 0 | 6 |
+| `src/audio.js` | 4 | 0 | 8 | 0 | 12 |
+| `src/main.js` | 15 | 11 | 2 | 2 | 30 |
+| **Total** | **117** | **34** | **41** | **7** | **199** |
+
+Kind definitions: engine identity = `lly`, `duramax`, `6600`; transmission = `allison`, `zf`; supplier/part = `bosch`, `garrett`, `acdelco`, `cp3`, `pf2232`, `denso`, `gm`, `gt3788*`; plant = `dmax`, `moraine`. Counts include import paths, entry references and remaining copy/brand text. The check remains 246 matches in 181 lines.
+
+### Later packages
+
+- Cell signage in `src/environment.js`: Phase 3.2.
+- Text in `index.html`: Phase 2.4.
+- Main.js UI copy and outline colours: Phase 2.4.
+- 3200 values: decision for 2.4.
+- 22.65 Hz bank cadence: Phase 2 derivation from `audio.baseToneHz / 2`.
+
+### Git state
+
+`src/engines/lly/index.js` is inside the untracked `src/engines/` directory, so it does not appear in `git diff --stat`; `docs/build-log.md` is the tracked 1.1c change. Earlier package changes remain. The final status and diff are in the package report.
+
+Open:
+- Package 1.5 has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-01 · 1.5 Phase 1 acceptance
+
+No code, entry, test, baseline, script or check changed. The only write was this log entry; the two temporary `.qa` comparison files were deleted.
+
+### Acceptance results
+
+1. `npm test`: 142 tests, 28 suites, 142 passed, 0 failed (289.0497 ms).
+2. `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8), 0 differ at all, largest channel delta 0. Console errors: none.
+3. `npm run build`: passed, 38 modules, 280 ms; CSS 34.94 kB, JS 1,298.78 kB.
+4. `npm run check`: Names 246 matches in 181 lines; Numbers 38 matches in 32 lines; Encoding PASS; IDs PASS; Provenance PASS (`lly`: 206 values, 62 records, 0 without record). Overall FAIL 2/5 on Names and Numbers. Exit code 1.
+5. Kinematics export comparison: 33 exports compared, 0 problems. Every value and function matched HEAD; the entry-derived exports keep the same values, key order and frozen state.
+6. Mapping check: eight removed literals, all matched their entry values. No other removed literal.
+
+The first `git show HEAD:src/kinematics.js > .qa/kinematics-head.mjs` redirect wrote UTF-16, so Node rejected the temporary file with:
+
+```text
+SyntaxError: Invalid or unexpected token
+```
+
+The file was regenerated as UTF-8 with Node, and the comparison then passed 33/0. Both temporary files were deleted.
+
+### Eight removed literals
+
+| File | Old literal | Entry path | Entry value |
+| --- | --- | --- | --- |
+| `src/audio.js` | `MAX_RPM = 3250` | `ratings.redlineRpm` | `3250` |
+| `src/audio.js` | `MAX_PULSE_FRAME_S = 0.2` | `audio.maxFrameS` | `0.2` |
+| `src/collision.js` | `WALL_CLEARANCE = 0.35` | `walk.wallClearanceM` | `0.35` |
+| `src/collision.js` | `DYNO_CLEARANCE = 0.3` | `walk.dynoClearanceM` | `0.3` |
+| `src/collision.js` | `ENGINE_WALK_RADIUS = 1.03` | `walk.clearanceRadiusM` | `1.03` |
+| `src/collision.js` | `MAX_HOP = 0.1` | `walk.maxHopM` | `0.1` |
+| `src/engine.js` | `EXPLODE_CUTAWAY_FRACTION = 0.45` | `explode.cutawayFraction` | `0.45` |
+| `src/main.js` | `MAX_RPM = 3250` | `ratings.redlineRpm` | `3250` |
+
+7. Git status and diff stat match the expected Phase 1 set: `docs/agent-runbook.md`, `docs/build-log.md`, `docs/engine-library-plan.md`, `scripts/check.mjs`, `src/audio.js`, `src/collision.js`, `src/engine.js`, `src/kinematics.js`, `src/main.js`, `src/specs.js` and the untracked `src/engines/`. No other file appeared. The temporary `.qa` files are absent.
+8. Gate hashes:
+
+| File | SHA-256 |
+| --- | --- |
+| `src/engine.js` | `833A738707DA6F67407AD649D7EA488DE19EA9A1260A9B0090482E682AB1FDDB` |
+| `src/kinematics.js` | `1679B12385FE86F80D63C62E6B0954C8EC1075BBF704A3A95E696979F61842B4` |
+| `src/audio.js` | `05D98733A46FDB5A5678F189D352C76AC2F7E1EC867D6E18F65586BC718FD044` |
+| `src/collision.js` | `744318490B4E32A8796BB7770AF212DE2F972A2D142486D920F8ADD0CDBFC31A` |
+| `src/main.js` | `FA8FF712372FBA08620197453EFCABF5C7A1B2224B63907078E70CEE7D06599A` |
+| `src/specs.js` | `B30CD8E66A14465CE344ED36D8420399286DE94A298304277228403EC2A6639C` |
+| `src/engines/lly/index.js` | `6296E2AEB0A91CFF61A8D1835485C810AC7FB2A2DE572B3529E61652BBE6E538` |
+
+### Phase 1 packages
+
+| Package | Files touched | Acceptance |
+| --- | --- | --- |
+| 1.1 | `src/engines/lly/index.js`, `docs/build-log.md` | 142 tests passed; provenance was the 1.1b follow-up; no commit |
+| 1.1b | `src/engines/lly/index.js`, `scripts/check.mjs`, `docs/build-log.md` | 142 tests passed; provenance PASS 197/61; Names 215/154, Numbers 52/46; no commit |
+| 1.2 | `src/engines/lly/copy.js`, `src/specs.js`, `src/engines/lly/index.js`, `docs/build-log.md`, `.qa/copy-before.json`, `.qa/copy-after.json` | Snapshots identical; 142 tests passed; build passed; Names 173/126, Numbers 43/37; no commit |
+| 1.3 | `src/kinematics.js`, `src/engine.js`, `src/specs.js`, `src/collision.js`, `src/audio.js`, `src/main.js`, `docs/build-log.md` | 142 tests passed; baseline passed; build passed; Names 246/181, Numbers 38/32; provenance 197/61; no commit |
+| 1.4 | `docs/agent-runbook.md`, `docs/engine-library-plan.md`, `docs/build-log.md` | 142 tests passed; baseline passed; build passed; Names 246/181, Numbers 38/32; provenance 197/61; no commit |
+| 1.1c | `src/engines/lly/index.js`, `docs/build-log.md` | 41 decal specs and 9 colours audited; 142 tests passed; baseline passed; build passed; Names 246/181, Numbers 38/32; provenance 206/62; no commit |
+| 1.5 | `docs/build-log.md` (plus deleted `.qa` temp files) | 142 tests passed; baseline passed; build passed; check counts above; 33 exports/0 problems; eight mappings matched; gate pending |
+
+### Entry at the gate
+
+`src/engines/lly/index.js` holds:
+
+`id`, `family`, `identity`, `layout`, `geometry`, `valvetrain`, `features`, `ratings`, `curves`, `turbo`, `telemetry`, `startSequence`, `audio`, `inspect`, `walk`, `dyno`, `look`, `explode`, `oil`, `provenance`, `copy`.
+
+- Provenance: 206 values, 62 records, 0 without record.
+- `look.decals`: 41 specs in 23 groups.
+- `look.palette`: 9 colours; `look.effects`: 2 colours.
+- All six code module hashes match the pre-1.1c values; the entry is the only changed hash.
+
+### Open decisions for the human
+
+1. **Kinematics layout (plan line 153).** `src/kinematics.js` still exports `LLY`, `CALIBRATIONS`, `STATION_Z`, `BANK_Z_OFFSET`, `STATION_THROW_OFFSET`, `CYLINDERS`, `FIRING_ORDER` and `VALVE_TIMING`. Decide before 2.3 how the family supplies them. Proposed default: the family builds them from the entry, and the kinematics functions take them as arguments.
+2. **Six LLY-specific bank labels in `src/engine.js`.** `headLabel` at line 1261 (`RIGHT BANK · 1-3-5-7` / `LEFT BANK · 2-4-6-8`), `bankText` at line 2045 (`BANK R · 1-3-5-7` / `BANK L · 2-4-6-8`) and the passenger/driver text at line 2049. They are not in the entry. Decide in 2.3: copy them into `look.decals`, or derive them from layout.
+3. **The 3200 values.** `GOVERNED` at `src/main.js:1065` and the 3200 ms toast at `src/main.js:1574`. The entry has no 3200 value. Plan line 123 gives 3,200 as the LBZ power peak. Decide in 2.4.
+4. **Cell signage.** The `DMAX` and `MORAINE` strings in `src/environment.js` belong in the entry as branding. Phase 3.2.
+5. **`INEFFECTIVE_DYNAMIC_IMPORT`.** The `copy.js` warning remains. Phase 3.1.
+
+The Phase 2 exit list is the Names section of the 1.1c entry: 199 six-module matches of the 246 total, with the remaining 47 in `index.html`, `src/environment.js` and `src/styles.css`.
+
+Gate: waiting for human approval. No commit, tag, or Phase 2 work has been started.

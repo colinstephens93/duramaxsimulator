@@ -20,6 +20,7 @@ import {
   torus,
   addBoltAt,
 } from './utils.js';
+import lly from './engines/lly/index.js';
 import {
   BANK_Z_OFFSET,
   CYLINDERS,
@@ -49,7 +50,7 @@ const EXHAUST_DURATION_CAM = VALVE_TIMING.exhaust.duration / 2;
 const MAIN_JOURNAL_Z = [277, 131, 0, -131, -277];
 // The exploded view also fades the castings, by this fraction of a full cutaway, so the crank, rods and
 // pistons stay legible inside the block.
-const EXPLODE_CUTAWAY_FRACTION = 0.45;
+const EXPLODE_CUTAWAY_FRACTION = lly.explode.cutawayFraction;
 // Past this much fade (opacity about 0.67) clicks go through the castings to the parts inside.
 const XRAY_PICK_THRESHOLD = 0.35;
 

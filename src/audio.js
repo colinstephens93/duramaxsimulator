@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { CYLINDERS, mod } from './kinematics.js';
+import lly from './engines/lly/index.js';
 
-const MAX_RPM = 3250;
+const MAX_RPM = lly.ratings.redlineRpm;
 // Frames longer than this are stalls (tab switch, shader compile), not motion worth
 // replaying as a burst of cylinder pulses.
-const MAX_PULSE_FRAME_S = 0.2;
+const MAX_PULSE_FRAME_S = lly.audio.maxFrameS;
 
 function makeSaturationCurve(amount = 2.4, samples = 1024) {
   const curve = new Float32Array(samples);

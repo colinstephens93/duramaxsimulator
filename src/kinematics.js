@@ -1,81 +1,88 @@
+import lly from './engines/lly/index.js';
+
 export const LLY = Object.freeze({
-  name: '6.6L Duramax 6600',
-  rpo: 'LLY',
-  displacementCc: 6599,
-  displacementCid: 402.62,
-  configuration: '90° V8',
-  boreMm: 103.0,
-  strokeMm: 99.0,
-  crankRadiusMm: 49.5,
-  rodLengthMm: 184.0,
-  boreStrokeRatio: 1.04,
-  compressionRatio: '17.5:1 (2004–05) / 16.8:1 (2006)',
-  firingOrder: [1, 2, 7, 8, 4, 5, 6, 3],
-  idleRpm: 680,
-  peakTorqueRpm: 1600,
-  peakHpRpm: 3000,
-  redlineRpm: 3250,
-  peakTorqueLbFt: 605,
-  peakHp: 310,
-  valvesPerCylinder: 4,
-  totalValves: 32,
-  oilCapacityQt: 10,
-  massLb: 835,
-  envelopeIn: [30.0, 30.0, 32.0],
-  assembly: 'DMAX, Moraine, Ohio',
+  name: lly.identity.name,
+  rpo: lly.identity.code,
+  displacementCc: lly.geometry.displacementCc,
+  displacementCid: lly.geometry.displacementCid,
+  configuration: lly.identity.configuration,
+  boreMm: lly.geometry.boreMm,
+  strokeMm: lly.geometry.strokeMm,
+  crankRadiusMm: lly.geometry.crankRadiusMm,
+  rodLengthMm: lly.geometry.rodLengthMm,
+  boreStrokeRatio: lly.geometry.boreStrokeRatio,
+  compressionRatio: lly.geometry.compressionRatio,
+  firingOrder: lly.layout.firingOrder,
+  idleRpm: lly.ratings.idleRpm,
+  peakTorqueRpm: lly.ratings.peakTorqueRpm,
+  peakHpRpm: lly.ratings.peakPowerRpm,
+  redlineRpm: lly.ratings.redlineRpm,
+  peakTorqueLbFt: lly.ratings.peakTorqueLbFt,
+  peakHp: lly.ratings.peakHp,
+  valvesPerCylinder: lly.valvetrain.valvesPerCylinder,
+  totalValves: lly.valvetrain.totalValves,
+  oilCapacityQt: lly.oil.capacityUsQt,
+  massLb: lly.geometry.massLb,
+  envelopeIn: lly.geometry.envelopeIn,
+  assembly: lly.identity.assembly,
 });
 
 export const CALIBRATIONS = Object.freeze({
   allison: {
-    id: 'allison',
-    label: 'Allison 1000 6-Spd Auto',
-    shortLabel: 'ALLISON 1000 AUTO',
-    peakTorqueLbFt: 605,
-    peakHp: 310,
-    maxRailPsi: 26000,
-    compressionRatio: '16.8:1 (2006 Auto)',
+    id: lly.ratings.calibrations.allison.id,
+    label: lly.ratings.calibrations.allison.label,
+    shortLabel: lly.ratings.calibrations.allison.shortLabel,
+    peakTorqueLbFt: lly.ratings.calibrations.allison.peakTorqueLbFt,
+    peakHp: lly.ratings.calibrations.allison.peakHp,
+    maxRailPsi: lly.ratings.calibrations.allison.maxRailPsi,
+    compressionRatio: lly.ratings.calibrations.allison.compressionRatio,
   },
   zf: {
-    id: 'zf',
-    label: 'ZF S6-650 6-Spd Manual',
-    shortLabel: 'ZF S6-650 MANUAL',
-    peakTorqueLbFt: 520,
-    peakHp: 300,
-    maxRailPsi: 23000,
-    compressionRatio: '17.5:1 (2004.5–05 Manual)',
+    id: lly.ratings.calibrations.zf.id,
+    label: lly.ratings.calibrations.zf.label,
+    shortLabel: lly.ratings.calibrations.zf.shortLabel,
+    peakTorqueLbFt: lly.ratings.calibrations.zf.peakTorqueLbFt,
+    peakHp: lly.ratings.calibrations.zf.peakHp,
+    maxRailPsi: lly.ratings.calibrations.zf.maxRailPsi,
+    compressionRatio: lly.ratings.calibrations.zf.compressionRatio,
   },
 });
 
 // Longitudinal station centers, front (+Z) to rear (−Z), in millimetres.
-export const STATION_Z = [196, 66, -66, -196];
+export const STATION_Z = lly.layout.stationZmm;
 // Each bore is slightly offset fore/aft between banks to package paired rods.
-export const BANK_Z_OFFSET = { R: 30, L: -30 };
+export const BANK_Z_OFFSET = {
+  R: lly.layout.banks.find((bank) => bank.id === 'R').bankOffsetZmm,
+  L: lly.layout.banks.find((bank) => bank.id === 'L').bankOffsetZmm,
+};
 
 // Crank throw phase offsets (degrees) which place each bank's TDC on its
 // prescribed firing event while retaining a four-throw cross-plane crank.
-export const STATION_THROW_OFFSET = [0, 90, 270, 180];
+export const STATION_THROW_OFFSET = lly.layout.throwOffsetDeg;
 
 // Cylinder bank numbering is the production Duramax convention.
 //Looking forward from the flywheel (−Z) toward the front cover (+Z) with +Y up:
 // 1,3,5,7 = passenger (right-hand, −X) bank -> +45° Three.js Z rotation (135° polar axis)
 // 2,4,6,8 = driver (left-hand, +X) bank -> −45° Three.js Z rotation (45° polar axis)
-export const CYLINDERS = [
-  { number: 1, bank: 'R', station: 0, fireAngle: 0, bankLabel: 'Passenger (Right)' },
-  { number: 2, bank: 'L', station: 0, fireAngle: 90, bankLabel: 'Driver (Left)' },
-  { number: 3, bank: 'R', station: 1, fireAngle: 630, bankLabel: 'Passenger (Right)' },
-  { number: 4, bank: 'L', station: 1, fireAngle: 360, bankLabel: 'Driver (Left)' },
-  { number: 5, bank: 'R', station: 2, fireAngle: 450, bankLabel: 'Passenger (Right)' },
-  { number: 6, bank: 'L', station: 2, fireAngle: 540, bankLabel: 'Driver (Left)' },
-  { number: 7, bank: 'R', station: 3, fireAngle: 180, bankLabel: 'Passenger (Right)' },
-  { number: 8, bank: 'L', station: 3, fireAngle: 270, bankLabel: 'Driver (Left)' },
-].map((c) => ({
-  ...c,
-  id: `cyl-${c.number}`,
-  z: STATION_Z[c.station] + BANK_Z_OFFSET[c.bank],
-  throwOffset: STATION_THROW_OFFSET[c.station],
-  bankRotationDeg: c.bank === 'R' ? 45 : -45,
-  bankAxisDeg: c.bank === 'R' ? 135 : 45,
-}));
+export const CYLINDERS = lly.layout.cylinders
+  .map((cylinder) => ({
+    number: cylinder.number,
+    bank: cylinder.bank,
+    station: cylinder.station,
+    fireAngle: cylinder.fireAngleDeg,
+    bankLabel: lly.layout.banks.find((bank) => bank.id === cylinder.bank).label,
+  }))
+  .map((cylinder) => {
+    const bank = lly.layout.banks.find((candidate) => candidate.id === cylinder.bank);
+    return {
+      ...cylinder,
+      id: `cyl-${cylinder.number}`,
+      z: STATION_Z[cylinder.station] + BANK_Z_OFFSET[cylinder.bank],
+      throwOffset: STATION_THROW_OFFSET[cylinder.station],
+      bankRotationDeg: bank.rotationDeg,
+      bankAxisDeg: bank.axisDeg,
+    };
+  });
 
 export const CYLINDER_BY_NUMBER = new Map(CYLINDERS.map((c) => [c.number, c]));
 export const FIRING_ORDER = CYLINDERS.slice().sort((a, b) => a.fireAngle - b.fireAngle).map((c) => c.number);
@@ -155,8 +162,16 @@ export const STROKE_COLORS = {
 };
 
 export const VALVE_TIMING = {
-  intake: { center: 450, duration: 230, lift: 10.9 },
-  exhaust: { center: 270, duration: 224, lift: 10.4 },
+  intake: {
+    center: lly.valvetrain.timing.intake.centerDeg,
+    duration: lly.valvetrain.timing.intake.durationDeg,
+    lift: lly.valvetrain.timing.intake.liftMm,
+  },
+  exhaust: {
+    center: lly.valvetrain.timing.exhaust.centerDeg,
+    duration: lly.valvetrain.timing.exhaust.durationDeg,
+    lift: lly.valvetrain.timing.exhaust.liftMm,
+  },
 };
 
 /** Smooth cam-like valve lift (mm) for a four-stroke cycle angle (deg). */

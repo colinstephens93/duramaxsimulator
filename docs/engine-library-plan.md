@@ -322,7 +322,7 @@ Deliverables:
 
 - `src/engines/lly/index.js` and `copy.js` hold the LLY values from section 5, with the provenance records. Values and value kinds are unchanged, and the Phase 1 labels stay as they are.
 - Modules import from the entry through re-exports, so the tests need no assertion changes.
-- `lly_report.md` stays at the root. The provenance records cite [research/lly.md](research/lly.md), which cites it.
+- `lly_report.md` stays at the root. The provenance records cite source S31 by ID, and [research/lly.md](research/lly.md) also cites S31.
 
 Exit: `npm test` and every baseline pass unchanged. The diff contains moves and imports and no number changes. The provenance check passes for the LLY entry.
 

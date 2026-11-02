@@ -108,10 +108,11 @@ Each package names its files, or points to the plan section that does. Stay insi
 
 ### Phase 1: move LLY into one entry
 
-- **1.1** Create `src/engines/lly/index.js` from [research/lly.md](research/lly.md) section 9. Use the baseline values where the sheet differs: rod length 184 mm, and the current calibration labels. Copy each value exactly and change no value kinds. Add a provenance record for each numeric value.
+- **1.1** Create `src/engines/lly/index.js` in the shape of the plan section 5 sketch, with every LLY value the code uses today. Copy each value exactly and change no value kinds. Take the sources from [research/lly.md](research/lly.md) sections 2 to 5 and section 9. Where the sheet and the code differ, the code's value stays: rod length 184 mm, and the current labels and compression strings. Give each numeric value a provenance record, one per named value (a curve table is one value). Curve tables, the start sequence, the telemetry gates, the audio, dyno, walk and valve estimates are `design`. Use `null` only where the sheet lists a gap. Leave out `copy`, which package 1.2 adds. Change no other file.
+- **1.1b** Add the `look` and `explode` data that package 1.1 left out, from the plan section 5 sketch: the palette (`src/engine.js` lines 101 and 107), the cutaway fraction (`EXPLODE_CUTAWAY_FRACTION`, line 52) and the explode offsets (the explicit `makeAssembly` offsets, for example `src/engine.js:2784`). Record each as `design`, and leave out `decals`, which package 1.2 adds. Then replace the provenance stub in `scripts/check.mjs` with the provenance check in plan section 8. It imports each entry under `src/engines/`, finds each numeric value and requires a record for it. A record cites IDs from `docs/research/sources.md`, or carries `design` or `derived`. `null` is allowed only for a gap the sheet lists. Acceptance: `npm run check` reports Provenance PASS for the LLY entry, `npm test` still passes with 142 tests, and the other checks are unchanged.
 - **1.2** Create `src/engines/lly/copy.js` by moving the LLY spec copy out of `specs.js`. The text stays the same.
 - **1.3** Point `kinematics.js`, `engine.js`, `specs.js`, `collision.js`, `main.js` and `audio.js` at the entry through re-exports.
-- **1.4** Keep `lly_report.md` at the root. The provenance records cite `docs/research/lly.md` and source S31.
+- **1.4** Keep `lly_report.md` at the root. The provenance records cite source S31 by ID. `docs/research/sources.md` lists S31 as `lly_report.md`, and `docs/research/lly.md` cites S31.
 - **1.5** Acceptance: `npm test`, then `npm run baseline:compare`, then `git diff --stat`, then `npm run check` (the provenance check must pass for the LLY entry).
 
 ### Phase 2: core reads the entry

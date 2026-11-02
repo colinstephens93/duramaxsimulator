@@ -1,3 +1,5 @@
+import lly from './engines/lly/index.js';
+
 // Where the camera may go. Plain functions on {x, z} / {x, y, z} data, with no Three.js and no DOM,
 // so the same code runs in the browser and in the Node tests.
 
@@ -8,15 +10,15 @@ const EPS = 1e-9;
 --------------------------------------------------------------------------- */
 
 // Distance kept between the walker and each obstacle (the walker itself is a point).
-const WALL_CLEARANCE = 0.35;
-const DYNO_CLEARANCE = 0.3;
-const ENGINE_WALK_RADIUS = 1.03;
+const WALL_CLEARANCE = lly.walk.wallClearanceM;
+const DYNO_CLEARANCE = lly.walk.dynoClearanceM;
+const ENGINE_WALK_RADIUS = lly.walk.clearanceRadiusM;
 // Control console and tool chest: solid from the console face to the east wall.
 const CONSOLE_BLOCK = { minX: 1.25, maxX: Infinity, minZ: -1.75, maxZ: 0.8 };
 
 // A step is walked in hops no longer than this, so a long frame can't carry the walker through an
 // obstacle (every obstacle is far thicker than a hop).
-const MAX_HOP = 0.1;
+const MAX_HOP = lly.walk.maxHopM;
 // Where an engine disc and a box meet the walker is pushed back and forth between them; this many
 // rounds settle it to well under a millimetre.
 const PASSES = 12;

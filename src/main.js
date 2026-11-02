@@ -30,6 +30,7 @@ import {
   vaneAtRpm,
 } from './kinematics.js';
 import { COMPONENT_SPECS, getSpec } from './specs.js';
+import lly from './engines/lly/index.js';
 
 const TAU = Math.PI * 2;
 const ENGINE_Y = 1.0;
@@ -38,7 +39,7 @@ const HOME_TARGET = new THREE.Vector3(0, 1.035, -0.03);
 const INTRO_POSITION = new THREE.Vector3(3.4, 2.25, 4.05);
 const INTRO_TARGET = new THREE.Vector3(0, 1.14, -0.08);
 const ENGINE_CENTER_XZ = new THREE.Vector2(0, -0.05);
-const MAX_RPM = 3250;
+const MAX_RPM = lly.ratings.redlineRpm;
 const SLOW_MOTION_SCALE = 0.12;
 
 const $ = (id) => document.getElementById(id);
