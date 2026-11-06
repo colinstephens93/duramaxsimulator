@@ -1,6 +1,6 @@
 # Engine library: refactor plan (v3)
 
-Version 3, 2026-10-29. Version 2 folded in the feasibility review. Version 3 applies the research in [research/README.md](research/README.md). Engine values are sourced there, and nobody signs off on values. The agent's rules and packages are in [agent-runbook.md](agent-runbook.md). "Q7" and similar refer to the 68-question planning list. That list is not in the repo, so section 3 states each decision in full and the build does not need it. Status: proposed. Nothing in the code has changed.
+Version 3, 2026-10-29. Version 2 folded in the feasibility review. Version 3 applies the research in [research/README.md](research/README.md). Engine values are sourced there, and nobody signs off on values. The agent's rules and packages are in [agent-runbook.md](agent-runbook.md). "Q7" and similar refer to the 68-question planning list. That list is not in the repo, so section 3 states each decision in full and the build does not need it. Status (2026-11-05): Phases 0 to 2 are done and gated (tags `phase-0-done`, `phase-1-done`, `phase-2-done`). Phase 3 is in progress. Sections 2 and 8 describe 2026-10-29 unless marked otherwise. The current state is in [handoff.md](handoff.md). The executable plan to the MVP is [mvp-plan.md](mvp-plan.md).
 
 ## 1. Goal
 
@@ -15,7 +15,7 @@ Done when:
 
 Out of scope (Q65, Q15, Q19, Q32): in-app editing, live dyno import, two engines in one cell, side-by-side views, overhead-cam valvetrains, non-four-stroke cycles, downloaded models.
 
-## 2. Starting point
+## 2. Starting point (historical, 2026-10-29)
 
 Checked against the code and the research on 2026-10-29.
 
@@ -23,15 +23,15 @@ Checked against the code and the research on 2026-10-29.
 - Browser: Chrome 156.0.8078.48 is installed. It runs through Playwright's `channel: 'chrome'`, gives WebGL 2 on an Intel Arc 140V GPU (ANGLE over Direct3D 11, not SwiftShader), and `requestAnimationFrame` runs normally.
 - LLY values sit in six places:
   - [src/kinematics.js](../src/kinematics.js): the `LLY` constant (`crankRadiusMm: 49.5`, `rodLengthMm: 184`), the cylinder layout, valve timing, the two calibrations (lines 28–47) and the curves.
-  - [src/engine.js](../src/engine.js): about 2,700 numeric literals in the builder, per the review. Only a few geometry values are named constants, and `HEAD_TOP` and `ROCKER_Y` are defined and exported but never used.
+  - `src/engine.js` (removed; now `src/engines/families/v8-ohv.js`; at `864f014` in git): about 2,700 numeric literals in the builder, per the review. Only a few geometry values are named constants, and `HEAD_TOP` and `ROCKER_Y` are defined and exported but never used.
   - [src/specs.js](../src/specs.js): about 38 hand-written spec entries. `ENGINE_SPEC_SUMMARY` and `INSPECTABLE_IDS` are exported and unused.
   - [src/main.js](../src/main.js): the start-up sequence, presets, camera home poses, `MAX_RPM` (3250), the telemetry gates and the `__LLY__` hook.
-  - [src/audio.js](../src/audio.js): the 45.3 Hz base tone and its own `MAX_RPM` (3250). [src/environment.js](../src/environment.js): the dyno at a fixed z, the driveline from a flywheel near z = −0.32 m, gauge scales that divide by literal 3250 and 2500 (line 1365), and "DMAX" signage. [src/engine.js](../src/engine.js) line 4270 also uses a literal 3250.
+  - [src/audio.js](../src/audio.js): the 45.3 Hz base tone and its own `MAX_RPM` (3250). `src/environment.js` (removed; now `src/environment/`): the dyno at a fixed z, the driveline from a flywheel near z = −0.32 m, gauge scales that divide by literal 3250 and 2500 (line 1365), and "DMAX" signage. `src/engine.js` (removed) line 4270 also uses a literal 3250.
   - [src/collision.js](../src/collision.js) and [index.html](../index.html): the 1.03 m walk clearance; labels, five presets and calibration buttons as literal text.
 - Start-up in `updateSimulation()`: cranking at 190 rpm with fuel off for 0.55 s; 520 rpm with fuel on until 1.25 s; idle until 2.05 s; then a ramp to the setpoint that ends at 2.25 s. The ramp uses damping 1.08 when the setpoint is above 1,600 rpm, and 1.35 otherwise. Steady running uses 0.98 when the target is above 2,200 rpm, and 1.42 otherwise. Both tests read the setpoint or target, not the current rpm ([src/main.js](../src/main.js) lines 311 and 318).
 - Telemetry gates in `updateSimulation()`: torque and horsepower show only when firing and above 150 rpm; rail, boost and oil show only when firing; vane shows above 30 rpm; coolant shows above 50 rpm and is 38 below that; EGT when not firing is 38 + 0.02 per rpm.
 - The engine and the cell are built once, at load. There is no swap path.
-- Randomness and the wall clock. Three.js's SSAO pass draws its kernel and noise from `Math.random` (`SSAOPass.js`, lines 443–445 and 470–471). So do the dust field in [src/environment.js](../src/environment.js) (lines 1733–1735) and the noise and offsets in [src/audio.js](../src/audio.js) (lines 28 and 323). The engine shake and the environment already run on simulation time (`simulation.totalTime`, lines 288, 349–351 and 366). The wall-clock reads in [src/main.js](../src/main.js), checked on 2026-10-31 for package 0.4, are these:
+- Randomness and the wall clock. Three.js's SSAO pass draws its kernel and noise from `Math.random` (`SSAOPass.js`, lines 443–445 and 470–471). So do the dust field in `src/environment.js` (removed; now `src/environment/`; at `864f014` the dust field was at lines 1733–1735) and the noise and offsets in [src/audio.js](../src/audio.js) (lines 28 and 323). The engine shake and the environment already run on simulation time (`simulation.totalTime`, lines 288, 349–351 and 366). The wall-clock reads in [src/main.js](../src/main.js), checked on 2026-10-31 for package 0.4, are these:
   - Changed under `?qa=1`: the frame delta in `animate()` (lines 1495–1510), which drives `updateSimulation`, `updateCamera`, `updateTelemetryUI` and `simulation.elapsed`; and the intro tween (line 412), which reads `startedAt` (set at line 209 and reset in `boot()`, lines 1558–1560).
   - Left alone, with the reason: the pointer-hold timing (lines 696 and 703, an input gesture); the hover throttle (lines 1512–1513, input timing); the toast hide timer (line 1169, UI only); and the FPS sampler and its adaptive quality (lines 1527–1542). The sampler is a measurement that `getFpsSamples()` reports, and adaptive quality is already off under `QA_MODE`.
   - The `render(count)` hook (line 1638) steps only `updateSimulation`. Under `?qa=1` it must also step the camera and the telemetry, or the intro and the walk stop once `animate()` stops advancing.
@@ -303,6 +303,20 @@ The audio frame carries every field its `update()` reads. The review found that 
 
 Sizes are relative (S, M, L, XL). The commands for each phase are in the runbook.
 
+**Status at 2026-11-05.**
+
+| Phase | Status |
+| --- | --- |
+| 0 | Done (`phase-0-done`) |
+| 1 | Done (`phase-1-done`) |
+| 2 | Done (`phase-2-done`). The family and kinematics still read the LLY module; that is Phase 3 work (decision D2). |
+| 3 | In progress. 3.1, 3.2a and 3.2b are done (checkpoint `e13290b`). The package is split into 3.3a to 3.3d (`docs/mvp-plan.md`, section 4.1). |
+| 4 | Not started. Decisions D4 to D6 come first. |
+| 5 | Post-MVP (cut). |
+| 6 | Not started. |
+
+The MVP is Phases 0 to 4 and 6 (decision D1, to be confirmed by the human).
+
 ### Phase 0: safety net (S)
 
 Deliverables:
@@ -450,7 +464,7 @@ Resource rules:
 - **Numbers:** 3250, 3000, 3200 and 26000 outside `src/engines/`. Clean from Phase 2. Some matches may be legitimate; the agent logs each one it keeps.
 - **Encoding:** the mojibake sequences `Â`, `â€` and `âˆ`.
 - **IDs:** engine-ID strings outside the registry.
-- **Exemptions:** `src/environment.js` is exempt from Names and Numbers until Phase 3.2 (open decision 4). The exemption is listed in `scripts/check.mjs`, and every hit in an exempt file is still printed.
+- **Exemptions:** none since package 3.2b (2026-11-05). The list in `scripts/check.mjs` is empty. A future exemption goes in that list, and every hit in an exempt file is still printed.
 
 ## 9. Risks
 
@@ -486,7 +500,7 @@ These are the decisions that were, or still are, with you. Values are not on thi
 1. **Injector wording in the copy.** The brief says "piezoelectric". The research favours solenoid for the LLY and the LBZ (see [research/lly.md](research/lly.md) section 6). Keep the brief's wording, or change it in Phase 6. This is a wording decision, not a value.
 2. **Console chair inside the walk circle. Decided 2026-10-31: exempt it now, and move it in Phase 6.** Checked on 2026-10-29 against `src/environment.js` (console group at lines 1245–1248, chair at lines 1416–1447): the seat's nearest corner is 0.91 m from the walk-circle centre (0, −0.05 m), and the nearest leg tip is 1.02 m. Both are inside the 1.03 m circle. The Phase 3 footprint test exempts the chair by name, with the exemption logged. Phase 6 moves the chair outside the circle, removes the exemption, and re-captures the baselines.
 3. **Cut line (Q68).** Drop Phase 5 first, then LBZ. Never cut Phases 0 to 3.
-4. **Environment signage and gauge scales (`src/environment.js`). Decided 2026-11-05: exempt the file from the Names and Numbers checks until Phase 3.2.** Phase 3.2 moves the cell signage to `cell.setBranding(entry)` and makes the gauge scales fractions of `ratings.redlineRpm`. Encoding, IDs and Provenance still apply to the file.
+4. **Environment signage and gauge scales (`src/environment.js`). Resolved 2026-11-05.** The file was exempt from the Names and Numbers checks until Phase 3.2. Package 3.2a split the file into `src/environment/`. Package 3.2b moved the signage and the gauge scales into the entry (`ui.branding`, `ui.gaugeFullScale`) through `cell.setBranding(entry)`. The exemption list is now empty.
 
 Decided by the research, with no sign-off needed:
 
@@ -497,6 +511,13 @@ Decided by the research, with no sign-off needed:
 - **Allison speed count** (research decision 7). Removed from the label in Phase 6.
 - **Browser binary.** Chrome, through `channel: 'chrome'`.
 - **Source sign-off.** Removed. The research is the authority for values.
+
+**Pending decisions, added 2026-11-05.** The full text and the defaults are in [mvp-plan.md](mvp-plan.md), section 7. Open decisions 1 and 2 above are D11 and D12 there.
+
+- D1, the MVP definition (Phases 0 to 4 and 6). D2, the Phase 2 gap, treated as Phase 3 work. D3, the GitHub remote.
+- D4, the LBZ rod length. D5, the LBZ valve timing and lift, and runbook rule 7. D6, the LBZ behaviour and look values.
+- D7, disposal by an ownership walk. D8, the audio and engine firing thresholds, both kept. D9, the QA gaps in the MVP.
+- D10, the stand values in Phase 5. D13, the rod-length correction after the MVP. D14, the commit author and trailer.
 
 ## 12. Changes from version 2
 

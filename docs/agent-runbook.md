@@ -21,8 +21,8 @@ If an item is missing, stop and report which one. Don't work around it. Package 
 5. Don't rewrite source files with PowerShell. Use the file tools, or a Node script that reads and writes UTF-8. Delete with git or Node, not `Remove-Item -Recurse`, which can follow directory junctions (plan section 10).
 6. Report a check as passing only after you ran it and read its final lines. Paste those lines into the log.
 7. **Values come from the research.** Every numeric engine value comes from [research/lly.md](research/lly.md), [research/lbz.md](research/lbz.md) or [research/inline6.md](research/inline6.md), and carries a provenance record that cites the source IDs in [research/sources.md](research/sources.md). If a value is not in the research, write `null`, log it, and move on without it. Never fill a gap from memory, and never research a value during the build.
-8. Never run `git reset --hard`, `git checkout --` or `git push`. Tags mark gates. Rollback is a human decision.
-9. Commit at the end of each phase, on the phase branch (`engine-library`), after the human approves that phase's gate. Use the author and trailer the repo is configured with (plan section 10).
+8. Never run `git reset --hard` or `git checkout --`. Never run `git push` unless the human names the remote and asks for that push. Tags mark gates. Rollback is a human decision.
+9. Commit at the end of each phase, on the phase branch (`engine-library`), after the human approves that phase's gate. Use the author and trailer the repo is configured with (plan section 10). A WIP checkpoint commit (no tag) may be made when the human asks to save progress between gates. It does not replace the phase commit.
 10. The open decisions in plan section 11 belong to the human. Values are not open decisions. If a decision is needed before a package and it isn't recorded, stop.
 11. Plan section 6 lists each phase's deliverables, and the packages cover them. If a deliverable has no package, stop and report.
 
@@ -37,7 +37,7 @@ At the start of every session:
 
 If `git status` shows changes that the log doesn't explain, stop and report them.
 
-**Starting state.** On 2026-10-30, before 0.1, `master` is at `864f014` with no tags. Three items are uncommitted: `docs/` (untracked: the plan, this runbook and `docs/research/`), and edits to `README.md` and `lly_report.md` from the documentation audit. The first log entry lists all three under Files. Don't revert them. They go into the Phase 0 commit, unless the human commits them first. On the first session, this note is the explanation that the check above needs.
+**Current state.** The paragraph that follows is the starting state from before Phase 0 (2026-10-30), kept for history. The current state is in [handoff.md](handoff.md), and the resume steps are in its section 8. Before 0.1, `master` was at `864f014` with no tags. Three items are uncommitted: `docs/` (untracked: the plan, this runbook and `docs/research/`), and edits to `README.md` and `lly_report.md` from the documentation audit. The first log entry lists all three under Files. Don't revert them. They go into the Phase 0 commit, unless the human commits them first. On the first session, this note is the explanation that the check above needs.
 
 ## 4. Build log
 
@@ -62,6 +62,7 @@ Stop, write the log entry, and report to the human when:
 - A tool is missing, or a download is needed that the human hasn't approved.
 - A numeric value has no provenance record, or is not in the research.
 - The plan and the code disagree in a way the plan doesn't cover.
+- The browser build or the renderer differs from the one in the baseline (`baseline:compare` reports both). Do not re-capture a baseline to make the compare pass.
 
 ## 6. Human gates
 
@@ -128,7 +129,12 @@ Each package names its files, or points to the plan section that does. Stay insi
 
 - **3.1** Write `src/engines/index.js` and `src/engines/schema.js`. Add the loaders, `validateEntry()`, `?engine=` parsing, and `window.__ENGINE__`, with `__LLY__` kept as an alias. `ENGINE_IDS` lists LLY only. Write the registry tests (the Node tests in plan section 8).
 - **3.2** Split `src/environment.js` into `src/environment/cell.js` and `src/environment/stand.js`, and delete the old file. Add `cell.setBranding`. Gauge scales are fractions of the entry's redline (plan section 5, Environment).
-- **3.3** Make the engine reference in `main.js` mutable. Write `src/core/swap.js` to follow plan section 7 exactly. Add the picker, which calls `switchEngine`.
+- **3.3a** The V8 family takes the entry: `buildEngine(materials, entry)`, with no import of the LLY module. Prompt: `docs/prompts/3.3a-family-takes-entry.md`.
+- **3.3b** The kinematics take the entry: `kinematicsFor(entry)`. The module-level LLY exports stay until 3.3d, because their consumers still import them.
+- **3.3c** The stand is built per engine, and the cell is built once. Check that the stand draws no `Math.random` numbers before it moves, so the seed order is kept.
+- **3.3d** Make the engine reference in `main.js` mutable. Write `src/core/swap.js` to follow plan section 7 exactly. Add the picker, which calls `switchEngine`. Add `model.telemetry()`, `TestCellAudio.configure()` and `installQaHook` (`__ENGINE__`, with the `__LLY__` alias). Remove `src/engines/active.js` and the module-level exports, migrating each test that imports them, and log each migration.
+
+*Why 3.3 is four packages (2026-11-05):* the family and kinematics still read the LLY module, and the swap must build and dispose the stand per engine. See `docs/mvp-plan.md` section 4.1.
 - **3.4** Write the test-only copy in `tests/fixtures/engines/lly-copy/`. Change identity, ratings, curves and copy, but not the stroke. Register it only when the build mode is `test`.
 - **3.5** Add the resource tracker and the disposal rules.
 - **3.6** Write `scripts/run-browser-tests.mjs` and add the `test:browser` npm script (section 9). Write `tests/browser/swap.browser.mjs`. It covers ten round trips, a clean console, resource counts back at baseline (the baseline is taken after the first round trip, plan section 7), and the cutaway state kept.
@@ -137,7 +143,7 @@ Each package names its files, or points to the plan section that does. Stay insi
 
 ### Phase 4: LBZ, from the research
 
-- **4.1** Build the LBZ entry from [research/lbz.md](research/lbz.md) section 8: identity, geometry, compression ratio, ratings, the two calibrations, turbo geometry, features and oil. Use `null` for the gaps the sheet lists.
+- **4.1** Build the LBZ entry from [research/lbz.md](research/lbz.md) section 8: identity, geometry, compression ratio, ratings, the two calibrations, turbo geometry, features and oil. Use `null` for the gaps the sheet lists, unless decision D5 or D6 says otherwise. Before 4.1, the human decides D4 to D6 (`docs/mvp-plan.md`, section 7). The entry needs all 22 keys, not only these.
 - **4.2** Write the LBZ spec copy. Claim only what the research supports. Do not claim the rod, piston or cooler differences, because they are not modelled (plan section 5).
 - **4.3** Add a provenance record for every numeric value, citing the source IDs.
 - **4.4** Register LBZ. Write its browser smoke test.

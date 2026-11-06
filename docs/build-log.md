@@ -3543,3 +3543,63 @@ Judgement calls:
 - The stand's engine values (mounts, pedestal, guard, flywheel and engine centre) were deliberately left in `stand.js`.
 
 Open: the stand's engine values stay in `stand.js` until the human decides. The Phase 3 gaps from 3.1 remain open: `active.js` and module-level reads in `collision.js`/`specs.js`, the family's direct entry import, missing `telemetry()`/`dispose()`, and the plan section 8 test migrations.
+
+## 2026-11-05 · Lead review of 3.2b
+
+Files: none changed by the lead. The harness's 3.2b changes are in the checkpoint commit `e13290b`.
+
+Commands, run on the 3.2b tree:
+- `npm test`: 207 pass, 0 fail (`ℹ tests 207`, `ℹ pass 207`, `ℹ fail 0`).
+- `npm run check`: `Result: PASS (0 of 5 checks failed)`, with `lly: 229 values, 65 records, 0 without record`.
+- `npm run build`: passes; `✓ built in`. The `copy.js` INEFFECTIVE_DYNAMIC_IMPORT warning and the chunk-size warning printed, as expected.
+- `npm run baseline:compare`: exit 0; Trace PASS; Geometry PASS; home 0 changed and 1 differing pixel at delta 1; the other five views 0 and 0; no console errors.
+- `git ls-files --eol` on the edited tracked files: `i/lf w/lf`. The index and the working tree are both LF.
+- Scratch check, outside the repo: each branding string is a quoted literal in HEAD's `src/environment.js`. The gauge divisors equal the old constants over 70,399 sample rpm values. `ui.gaugeFullScale` has the `design` provenance record.
+- `git status --short` and `git diff --stat`: six tracked files changed (170 insertions, 1,822 deletions), plus the untracked 3.1 and 3.2 files. This matches the harness's report.
+- SHA-256 (the first three match the harness's paste):
+  - `src/environment/cell.js`: `189fdce00e297dc7ec9062ffe0c8e70f461069783f17529b444d3e8b285c09c8` (1,381 lines)
+  - `src/environment/stand.js`: `b6eff40fbe63d02d8486953b05b026a81fc437629a4aa5b12ab43a4477c4f3d0` (548 lines)
+  - `src/engines/lly/index.js`: `eaf77f33141856480c7e798312d569d03262045f1e764c756d9438bd03897f6a` (654 lines)
+  - `src/main.js`: `c85ba34fe4715fbc83d82c02366a3f02e1dffdc7b544d20aa74ace2ec3f7f78a` (1,626 lines)
+  - `scripts/check.mjs`: `4f2e898219ffcfa4728ba1f8db5c7357f0fe2dc5c2397c2555573a7ae2bc67c6` (386 lines)
+
+Provenance: none new in this review.
+
+Judgement calls:
+- The dyno label in `stand.js` (lines 388–389: `DYNO`, and `EDDY CURRENT ABSORBER · 1,000 LB-FT`) was outside 3.2b's scope. Its rating duplicates `dyno.ratedLbFt`. It moves with the stand values in Phase 5 (D10). The Numbers rule does not match `1,000`, so the check passes.
+- `cell.setBranding` has no test yet. The baseline covers the build path only. The swap (3.3d) calls it, and the browser test (3.6) should check the label text.
+- A nit: `redlineRpm` falls back to 1 when no entry is passed, which pegs every gauge bar. `main.js` always passes the entry, so nothing shows it. Make the entry required in 3.3c or 3.3d.
+
+Open:
+- The family and kinematics still read the LLY module (D2; packages 3.3a and 3.3b).
+- Decisions D1 to D14: `docs/mvp-plan.md`, section 7.
+- Next package: 3.3a (`docs/prompts/3.3a-family-takes-entry.md`).
+
+## 2026-11-05 · Checkpoint and handoff documents
+
+Files created: `AGENTS.md`, `CLAUDE.md`, `docs/README.md`, `docs/handoff.md`, `docs/mvp-plan.md`, `docs/harness-notes.md`, `docs/prompts/3.3a-family-takes-entry.md`.
+
+Files changed:
+- `README.md`: rewritten for the current structure and tests. The user-facing sections are kept.
+- `docs/agent-runbook.md`: rules 8 and 9 (a WIP checkpoint on request; a push only when the human names the remote); the starting-state paragraph, now marked as history; the Phase 3 package list (3.3a to 3.3d); the 4.1 note (decisions D4 to D6, and all 22 keys); a stop condition for the browser build.
+- `docs/engine-library-plan.md`: the status line; the 2026-10-29 starting point marked as history, with three dead links turned into plain text that says where the code went; a phase status table; the exemption line (none since 3.2b); open decision 4 resolved; the pending decisions D1 to D14 added to section 11.
+- `docs/qa-recipe.md`: line references checked against the code at the 3.2b checkpoint; the open findings re-checked by search (the pointer-lock calls are still present, and the prop collision is still open).
+- `docs/build-log.md`: the review of 3.2b (above) and this entry.
+
+Commands:
+- `npm test`: 207 pass, 0 fail (the code is unchanged since the checkpoint).
+- `npm run check`: PASS (229 values, 65 records, 0 without a record).
+- Link check, a Node script in the scratchpad outside the repo: 154 relative links in the documents; none missing, after the fixes above.
+
+Git: the checkpoint commit `e13290b` holds the code and the build log through 3.2b. This documentation commit follows it. No remote is configured, so nothing is pushed.
+
+Judgement calls:
+- Phase 3 is split into 3.3a to 3.3d. The reasons are in `docs/mvp-plan.md`, section 4.1.
+- The MVP is defined as Phases 0 to 4 and 6 (D1), following the plan's cut line. The human confirms it.
+- The 3.3a prompt was revised before it ran, for Windows PowerShell 5.1: `grep` became `Select-String`, and source edits go through a UTF-8 Node script.
+- Runbook rule 7 is unchanged. The amendment that D5 needs waits for the human's decision.
+
+Open:
+- No GitHub remote (D3). Nothing has been pushed.
+- Decisions D1 to D14: `docs/mvp-plan.md`, section 7; the defaults are also in `docs/handoff.md`, section 5.
+- 3.3a is ready to run. 3.3b to 3.3d, 3.4 to 3.8, and the Phase 3 gate follow.

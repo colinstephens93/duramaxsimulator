@@ -8,6 +8,14 @@ This is a mechanical and visual simulation, **not an OEM service manual, CAD mod
 
 ---
 
+## Status
+
+The LLY is complete. The app is being turned into an **engine library**: each engine is one data entry in `src/engines/`, and the app builds, animates and describes whatever entry it is given. The registry, the entry validation and the cell/stand split are in place. Runtime switching between engines and a second engine (the LBZ, a Duramax variant) are still to come.
+
+Until those land, the app shows the LLY only, and the LBZ is not modelled. The plan and its status are in [docs/handoff.md](docs/handoff.md) and [docs/mvp-plan.md](docs/mvp-plan.md).
+
+---
+
 ## Requirements
 
 - **Node.js `^20.19.0` or `>=22.12.0`** (required by Vite 8)
@@ -16,6 +24,8 @@ This is a mechanical and visual simulation, **not an OEM service manual, CAD mod
 - Mouse and keyboard
 
 Chrome, Edge, and Firefox are the primary targets. Safari with WebGL 2 should run, but has not been exhaustively tested. The interface is designed for desktop viewports of roughly 1366 × 768 and larger; it is not a mobile experience.
+
+Google Chrome is also needed for the baseline captures (`npm run baseline:compare`), which drive it through Playwright.
 
 ---
 
@@ -67,21 +77,42 @@ The default commands are local-only (`127.0.0.1`). To use a different port:
 npx vite --host 127.0.0.1 --port 5174
 ```
 
-### Tests
+---
+
+## Tests and checks
 
 ```bash
 npm test
 ```
 
-Runs the Node built-in test runner (no browser, no extra dependencies):
+Runs the Node built-in test runner (no browser, no extra dependencies). Each file covers one part of the code:
 
-- `tests/kinematics.test.mjs`: firing order, the 99 mm crank-slider stroke and TDC phasing, the cam-driven valve timing, and the calibration spec points.
-- `tests/audio-pulses.test.mjs`: the per-cylinder pulse cadence in `src/audio.js` across RPM and frame rate, stalls, slow motion and firing order, against a fake Web Audio graph.
+- `tests/registry.test.mjs`: the engine registry and entry validation; the LLY's physics (firing order, top dead centre, stroke, cam timing, valve timing, rated peaks at each calibration's own rpm, audio cadence, walk clearance) and spec copy for every part.
+- `tests/kinematics.test.mjs`: the crank-slider geometry, the 0.5× cam ratio, valve timing and lift, and the calibration points.
+- `tests/telemetry.test.mjs`: curve evaluation and the telemetry gates.
+- `tests/simulation.test.mjs`: the start-up sequence and the rpm damping.
+- `tests/audio-pulses.test.mjs` and `tests/audio-config.test.mjs`: the per-cylinder pulse cadence and the audio configuration.
 - `tests/picking.test.mjs`: when a click goes through the faded castings to the parts inside, in the cutaway and exploded views.
-- `tests/collision.test.mjs`: walk-mode collision against the engine, dyno guard, console and walls, and the orbit camera's room limits (`src/collision.js`), using the room's real numbers.
+- `tests/collision.test.mjs`: walk-mode collision against the engine, dyno guard, console and walls, and the orbit camera's room limits.
 - `tests/fixture.test.mjs`: the ceiling fixtures' hanger rods are attached to the housing and reach the ceiling.
+- `tests/ui-bind.test.mjs`: the presets, calibration buttons, quick parts and display values read from the entry.
+- `tests/baseline.test.mjs`: the LLY's numeric baseline, compared exactly.
 
-`src/main.js` (hotkeys, HUD, toasts, the render loop) needs a browser and is not covered; the rules it calls for picking and collision live in `src/engine.js` and `src/collision.js` so they are. `buildEnvironment()` needs WebGL, so the tests build only the pieces of it they exercise.
+Other checks:
+
+```bash
+npm run check
+```
+
+Checks the source for engine names and numbers outside `src/engines/`, for mojibake, for engine IDs written outside the registry, and for a provenance record on every numeric value in every entry.
+
+```bash
+npm run baseline:compare
+```
+
+Captures the LLY's behaviour trace, geometry and six views in Chrome, and compares them with the baseline files in `tests/baseline/` and the PNG views in `.qa/baseline/`. It needs Chrome installed.
+
+`src/main.js` (hotkeys, HUD, toasts, the render loop) needs a browser and is not covered by `npm test`. The cell and the stand need WebGL to build, so the Node tests cover their data and the browser checks cover the rest.
 
 ---
 
@@ -229,19 +260,24 @@ Exterior and interior components are grouped into selectable parts with proper n
 
 ## Technical architecture
 
+### Engines
+
+Each engine is one module in `src/engines/<id>/`, whose default export is a plain data object (the **entry**). The entry holds every value the app uses for that engine, and each numeric value has a **provenance record** that cites its source IDs in [docs/research/sources.md](docs/research/sources.md).
+
+- `src/engines/index.js` is the registry. It lists the engine IDs, loads an entry on demand, validates it, and reads `?engine=<id>`.
+- `src/engines/schema.js` validates an entry: the required keys, finite numbers, the firing order, the rpm limits, the calibration peaks and the provenance coverage.
+- `src/engines/families/v8-ohv.js` is the procedural builder for the V8 overhead-valve layout, and `v8-ohv-kinematics.js` holds the crank-slider and valve-train maths.
+- `src/core/` holds the simulation (`simulation.js`) and the telemetry curves and gates (`telemetry.js`). Both read the entry.
+
+The LLY's values are in `src/engines/lly/index.js` (the entry) and `src/engines/lly/copy.js` (the spec cards).
+
 ### Coordinate system and units
 
 Engine geometry is built in **millimetres** under `engine.root`, then uniformly scaled by `0.001` into scene metres. The crankshaft axis is **Z**. The two banks are rotated **±45°** about Z, giving the 90° included V angle.
 
-`src/kinematics.js` is the source of truth for:
+The LLY entry is the source of truth for the LLY's dimensions and identification, the cylinder numbering and banks, the firing order, the calibrations and the curves. The V8 family derives the motion from it.
 
-- LLY dimensions and identification
-- cylinder numbering, banks, stations, and firing angles
-- crank-pin phase and exact crank-slider piston motion
-- valve timing and lift curves
-- torque, power, rail-pressure, boost, vane, EGT, and oil curves
-
-`src/specs.js` holds the display copy used by hover labels and specification cards.
+`src/specs.js` looks up the display copy used by hover labels and specification cards.
 
 ### Rendering
 
@@ -272,7 +308,7 @@ If the average FPS falls below **44** after the first few seconds, adaptive qual
 
 The full-quality path keeps SSAO and the higher pixel ratio. Performance depends on GPU, viewport size, outline selection, and cutaway state. Full-quality post-processing at 4K is intentionally demanding; let adaptive quality do its job or use a smaller window.
 
-For automated screenshots, append `?qa=1` to the URL to disable adaptive quality. This query parameter is for QA only.
+For automated screenshots, append `?qa=1` to the URL to disable adaptive quality. This query parameter is for QA only, and it also makes the simulation clock step only when a QA hook calls it. See [docs/qa-recipe.md](docs/qa-recipe.md).
 
 ### File map
 
@@ -280,17 +316,30 @@ For automated screenshots, append `?qa=1` to the URL to disable adaptive quality
 | --- | --- |
 | `index.html` | Application shell, HUD, calibration switch, inspector, help, full data sheet |
 | `src/styles.css` | Industrial UI, viewport layout, responsive rules, walk HUD |
-| `src/main.js` | Renderer, post-processing, simulation state, controls, picking, telemetry, screenshots |
-| `src/collision.js` | Walk-mode collision and the orbit camera's room limits (plain functions, no Three.js, covered by the tests) |
-| `src/audio.js` | Real-time Web Audio API V8 exhaust, injector knock, starter, and GT3788VA VNT turbo synthesizer |
-| `src/engine.js` | Procedural LLY geometry, materials assignment, kinematics, cutaway/explode |
-| `src/environment.js` | Test cell, stand, dyno, props, lighting, environment reflections |
-| `src/kinematics.js` | Engine constants, cylinder layout, firing order, dual calibrations, motion and performance curves |
-| `src/specs.js` | Engineering specification cards and component metadata |
-| `src/utils.js` | Procedural textures, PBR material library, geometry helpers, labels, merge utilities |
-| `tests/` | `npm test` suite: kinematics, audio-pulse, picking, collision and fixture checks |
-| `docs/` | Engine-library plan, agent runbook and research sheets (`docs/research/`) |
-| `lly_report.md` | Original development research notes. Superseded where it differs by `docs/research/` |
+| `src/main.js` | Renderer, post-processing, simulation loop, controls, picking, telemetry, screenshots, and the QA hook |
+| `src/engines/index.js` | Engine registry: IDs, loaders, validation, `?engine=` parsing, the QA hook installer |
+| `src/engines/schema.js` | Entry validation: required keys, numbers, invariants, provenance coverage |
+| `src/engines/lly/index.js` | The LLY entry: every LLY value, with its provenance record |
+| `src/engines/lly/copy.js` | The LLY's spec cards (loaded on demand) |
+| `src/engines/active.js` | Interim binding to the LLY entry; removed in package 3.3d |
+| `src/engines/families/v8-ohv.js` | The V8 overhead-valve builder: geometry, materials, animation, cutaway and explode |
+| `src/engines/families/v8-ohv-kinematics.js` | Crank-slider and valve-train maths, and the layout constants |
+| `src/core/simulation.js` | Run state, start-up sequence, rpm damping, crank angle |
+| `src/core/telemetry.js` | Curve evaluation and the telemetry gates, read from the entry |
+| `src/environment/cell.js` | The test cell: room, lights, signage, props, console, ceiling fixtures; `setBranding(entry)` |
+| `src/environment/stand.js` | The test stand: bedplate, mounts, dyno, driveline guard (its values are still the LLY's until Phase 5) |
+| `src/collision.js` | Walk-mode collision and the orbit camera's room limits (plain functions, covered by the tests) |
+| `src/audio.js` | Real-time Web Audio API synthesizer: the V8 exhaust, injector knock, starter, and VNT turbo |
+| `src/kinematics.js` | Generic maths |
+| `src/specs.js` | Spec-card lookup |
+| `src/ui/bind.js`, `src/ui/format.js` | Text binding and number formatting from the entry |
+| `src/utils.js` | Procedural textures, the PBR material library, geometry helpers, labels, merge utilities |
+| `tests/` | The `npm test` suite and the baseline files |
+| `scripts/` | Checks (`check.mjs`), and the baseline capture and compare tools |
+| `docs/` | The plan, the runbook, the handoff, the MVP plan, the build log, the QA recipe, the harness notes, the prompts, and the research |
+| `archive/` | Earlier source snapshots (to be removed in Phase 6; git keeps them) |
+| `lly_report.md` | Original research notes. Superseded where it differs from `docs/research/`. |
+| `prompt_v2.md` | The original project brief (historical) |
 | `dist/` | Generated production build (ignored by git) |
 
 ---
@@ -301,7 +350,7 @@ The mechanical layout follows the project brief and the supplied LLY specificati
 
 - **Bore, stroke, crank throw, 90° bank angle, firing order, firing intervals, and the 0.5× cam ratio are implemented directly.** Stroke travel is 99.00 mm.
 - Ancillary packaging dimensions, casting shapes, some service clearances, and the visual connecting-rod length are stylised for legibility. The rods are modelled at 184 mm centre to centre; the research gives 163.0 mm for the production rod ([`docs/research/lly.md`](docs/research/lly.md), section 2; the conflict is in section 6). This is not OEM CAD.
-- The telemetry panel supports both the **Allison 1000 Automatic (`605 lb-ft / 310 hp / 26,000 psi`)** and **ZF S6-650 6-Speed Manual (`520 lb-ft / 300 hp / 23,000 psi`)** ratings. Production LLY figures vary by model year and transmission pairing. The LLY was built from mid-2004 to early 2006, so a 2006 truck may have either an LLY or an LBZ. The LBZ (2006–2007, VIN code D) has different ratings and is not modelled in this app.
+- The telemetry panel supports both the **Allison 1000 Automatic (`605 lb-ft / 310 hp / 26,000 psi`)** and **ZF S6-650 6-Speed Manual (`520 lb-ft / 300 hp / 23,000 psi`)** ratings. Production LLY figures vary by model year and transmission pairing. The LLY was built from mid-2004 to early 2006, so a 2006 truck may have either an LLY or an LBZ. The LBZ (2006–2007, VIN code D) has different ratings. It is not modelled yet; it is the planned second engine (see [docs/mvp-plan.md](docs/mvp-plan.md)).
 - The brief describes piezoelectric injectors. Sources disagree. Four secondary sources describe **Bosch solenoid injectors**, which the research favours, while the GM-style spec sheet and DieselHub say piezoelectric. The visual injector hardware and specification copy follow the requested brief. See [`docs/research/lly.md`](docs/research/lly.md) for the conflict, and [`lly_report.md`](lly_report.md) for the original notes.
 - Valve lift, spring geometry, lobe profiles, and rocker ratios are engineering approximations built to preserve correct relative motion, not certified OEM lift data.
 - Torque, power, rail pressure, boost, vane, EGT, and oil values are illustrative curves, not a live ECU or dyno data stream.
@@ -312,14 +361,14 @@ Do not use this application for engine assembly, service limits, torque specific
 
 ## Customising
 
-- **RPM/preset behaviour** and engine curves: `src/kinematics.js` and the preset/calibration wiring in `src/main.js`.
-- **Audio synthesis and spatialization**: `src/audio.js`.
-- **Part specification copy**: `src/specs.js`.
-- **Engine geometry, materials, cutaway and exploded offsets**: `src/engine.js`.
-- **Test cell, lighting, and dyno**: `src/environment.js`.
-- **Where the walker and orbit camera may go**: `src/collision.js` for the clearances and the console block, and `environment.collision` in `src/environment.js` for the room, dyno guard and orbit volumes.
-- **UI layout and shortcuts**: `index.html`, `src/styles.css`, and `bindControls()` in `src/main.js`.
-- **Branding and engine data sheet**: `index.html` and `src/environment.js`.
+- **Engine values, curves and start-up:** the entry, `src/engines/lly/index.js` (the `ratings`, `curves`, `startSequence` and `turbo` blocks). The telemetry and the start-up code that read them are in `src/core/`.
+- **Audio synthesis and spatialization:** `src/audio.js`. Its configuration comes from the entry's `audio` block.
+- **Part specification copy:** `src/engines/lly/copy.js`.
+- **Engine geometry, materials, cutaway and exploded offsets:** the V8 builder in `src/engines/families/v8-ohv.js`, and the entry's `look` and `explode` blocks.
+- **Test cell, lighting, and props:** `src/environment/cell.js`. **The test stand and the dyno:** `src/environment/stand.js`.
+- **Where the walker and the orbit camera may go:** the entry's `walk` block and `src/collision.js`.
+- **UI layout and shortcuts:** `index.html`, `src/styles.css`, and the event bindings in `src/main.js`.
+- **Branding text** (the floor label, the sign, the console and the stand badge): the entry's `ui.branding` block.
 
 Rebuild after any source change:
 
@@ -354,6 +403,18 @@ npm run build
 
 **Screenshot download**
 - The browser must allow downloads from the local page. `CAPTURE` saves only the 3D viewport, at up to 1920 px wide.
+
+---
+
+## Documentation
+
+- [AGENTS.md](AGENTS.md): start here, for a contributor or an AI tool.
+- [docs/handoff.md](docs/handoff.md): the current state and the next step.
+- [docs/mvp-plan.md](docs/mvp-plan.md): the plan to the first release, with its tests and gates.
+- [docs/engine-library-plan.md](docs/engine-library-plan.md): the design of the engine library.
+- [docs/agent-runbook.md](docs/agent-runbook.md): the build rules, stop conditions and gates.
+- [docs/qa-recipe.md](docs/qa-recipe.md): how to drive and check the app.
+- [docs/research/](docs/research/README.md): the sourced engine values.
 
 ---
 

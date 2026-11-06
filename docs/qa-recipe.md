@@ -2,7 +2,7 @@
 
 This recipe stands on its own. It describes two ways to drive the app, the QA
 hooks, deterministic stepping, screenshots, known traps, cleanup and open
-findings. Paths and line numbers refer to this repository checkout.
+findings. Paths and line numbers refer to this repository checkout, as checked at the Phase 3.2b checkpoint (2026-11-05). Line numbers drift as code moves; search for the symbol if a number misses.
 
 ## a. Two ways to drive the app
 
@@ -56,7 +56,7 @@ re-checked here.
 
 ## b. Hooks on window.__LLY__
 
-The object is assigned at `src/main.js:1600-1682`. Every name below is present.
+The object is assigned at `window.__LLY__ = {` in `src/main.js` (line 1542 at the checkpoint; `render` is at line 1615). Every name below is present. From package 3.3d, `window.__ENGINE__` is the same object, and `__LLY__` is an alias until Phase 6.
 
 | Hook | What it is |
 | --- | --- |
@@ -94,16 +94,16 @@ The object is assigned at `src/main.js:1600-1682`. Every name below is present.
 | `render` | The QA clock: steps simulation, camera and telemetry, then renders once. |
 
 `setFixture` accepts `rpm`, `crankAngle`, `running`, `fuel`, `starting`,
-`desiredRpm`, `cutaway` and `exploded` (`src/main.js:1633-1671`).
+`desiredRpm`, `cutaway` and `exploded` (`src/main.js` line 1575).
 
 ## c. Stepping under ?qa=1
 
 Under `?qa=1`, `animate()` does not advance the simulation, the camera or the
-telemetry. That block is gated by `if (!QA_MODE)` at `src/main.js:1532-1543`.
+telemetry. That block is gated by `if (!QA_MODE)` at `src/main.js:1533`.
 The loop still runs the hover check, screenshot check, FPS sampler and render.
 
 The simulation, camera and telemetry advance only through
-`window.__LLY__.render(count)` at `src/main.js:1673-1680`. Each iteration:
+`window.__LLY__.render(count)` at `src/main.js:1615`. Each iteration:
 
 ```text
 simulation.elapsed += 1 / 60
@@ -136,43 +136,43 @@ The baseline views are read from the WebGL canvas with
 
 Do not use `captureScreenshot()` for comparisons. It draws a branded canvas
 with test-cell copy and a download link, then triggers a file download
-(`src/main.js:1477-1510`). It is for human-facing captures, not baseline
+(`src/main.js:1418`). It is for human-facing captures, not baseline
 comparison.
 
 ## e. Gotchas
 
 **Camera tween overwrites a pose - checked.**
-`resetCamera()` starts a 1.05 s tween (`src/main.js:430`); `exitWalk()` starts a
-1.1 s tween (`src/main.js:522`). `tweenCamera()` sets `controls.enabled = false`
-(`src/main.js:410-425`), and `updateCamera()` keeps overwriting the pose until
-the tween ends, then sets `controls.enabled = true` (`src/main.js:455-465`).
+`resetCamera()` starts a 1.05 s tween (`src/main.js:374`); `exitWalk()` starts a
+1.1 s tween (`src/main.js:459`). `tweenCamera()` sets `controls.enabled = false`
+(`src/main.js:357`), and `updateCamera()` keeps overwriting the pose until
+the tween ends, then sets `controls.enabled = true` (`src/main.js:381`).
 Wait the tween out, then set the camera pose and `controls.enabled = false`.
 
 **Synthetic pointerdown/pointerup on #webgl - checked.**
 The canvas is `#webgl` (`index.html:21`). The listeners are attached at
-`src/main.js:1362` and `:1369`. Dispatch `pointerdown` and `pointerup` with
+`src/main.js:1303` and `:1310`. Dispatch `pointerdown` and `pointerup` with
 button 0 at integer pixel coordinates on `#webgl`.
 
 **Freeze moving parts with setFixture - checked.**
 `setFixture({ rpm: 0, running: false })` sets `engineOn` false, fuel false and
 RPM 0, then updates the engine with `turboRate: 0`
-(`src/main.js:1633-1671`). The note's reason is that, with the engine running,
+(`src/main.js` line 1575). The note's reason is that, with the engine running,
 parts move between hit prediction and the click; that race is from the notes,
 not re-checked here.
 
 **Selected part appears in #specId - checked.**
 `selectPart()` writes the uppercase id to `#specId`
-(`src/main.js:689`); the element is at `index.html:275`.
+(`src/main.js:636`); the element is at `index.html:268`.
 
 **Walk dt cap of 0.1 s - checked.**
 The normal-mode camera step is `Math.min(0.1, rawDt)`
-(`src/main.js:1536`), inside the `!QA_MODE` block at `:1532`. Under `?qa=1` the
-step is exactly `1/60 s` (`src/main.js:1677`), so the 0.1 s cap does not apply.
+(`src/main.js:1478`), inside the `!QA_MODE` block at `:1474`. Under `?qa=1` the
+step is exactly `1/60 s` (the render hook, from `src/main.js:1615`), so the 0.1 s cap does not apply.
 
 **Stale screenshots and the stamp - checked in part, from notes in part.**
 No `#qaStamp` element exists in `index.html` or `src/`; it is an element an
 agent adds. `captureScreenshot()` is the overlay/download path
-(`src/main.js:1477-1510`). The note's advice to wait about 1.5 s after adding
+(`src/main.js:1418`). The note's advice to wait about 1.5 s after adding
 the stamp is from the notes, not re-checked.
 
 **Before-and-after builds with git archive - from notes, not re-checked.**
@@ -186,8 +186,8 @@ Then junction `node_modules` into the scratch copy and serve it on a second
 port. The notes call for a junction; clean it up as described in section f.
 
 **requestPointerLock promise - checked.**
-`enterWalk()` calls `canvas.requestPointerLock?.()` at `src/main.js:507`; the
-canvas pointerdown handler calls it at `src/main.js:1364`. Both are optional
+`enterWalk()` calls `canvas.requestPointerLock?.()` at `src/main.js:454`; the
+canvas pointerdown handler calls it at `src/main.js:1305`. Both are optional
 calls whose returned promise is not awaited or caught, so a rejection can be
 uncaught.
 
@@ -211,16 +211,16 @@ project's own `dist/` or source tree.
 
 ## g. Known open findings
 
-From the QA notes as of 2026-10-27. These are known gaps, not regressions, and
+From the QA notes as of 2026-10-27, re-checked at the 3.2b checkpoint (2026-11-05). These are known gaps, not regressions, and
 they are not fixed:
 
 - Walk mode has no collision for props: the work-lamp post around (-2.0, 1.7),
   the tool chest at (2.82, 1.16), and other props. `buildWalkWorld()` already
-  accepts circles and boxes, so adding them is small.
+  accepts circles and boxes, so adding them is small. Planned in package 3.7 (`docs/mvp-plan.md`).
 - The outline's hidden-edge colour (`outlinePass.hiddenEdgeColor` in
-  `src/main.js`; initial set at `:184`) is nearly invisible.
+  `src/main.js`; initial set at `:183`) is nearly invisible.
 - `canvas.requestPointerLock?.()` in `enterWalk` and the canvas pointerdown
-  handler can reject as an uncaught promise (`src/main.js:507` and `:1364`).
+  handler can reject as an uncaught promise (`src/main.js:454` and `:1305`).
 - The quick-part buttons for internal parts show nothing in the assembled view.
 - The default exploded-view camera is too wide.
 - Injector wording remains an open content decision: the brief says
