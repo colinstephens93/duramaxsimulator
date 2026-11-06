@@ -330,7 +330,7 @@ The human decides these. The default is what happens if nobody answers before th
 | --- | --- | --- | --- |
 | D1 | MVP definition: Phases 0 to 4 and 6, Phase 5 out? | Yes, as section 1 | Phase 4 |
 | D2 | The Phase 2 gap (the family still reads LLY): treat it as Phase 3 work, and leave the Phase 2 gate as approved? | Yes | 3.3a |
-| D3 | The GitHub remote: none exists, and nothing has been pushed. Send the URL of an empty repo, or install the GitHub CLI and approve creating one. | Nothing pushed until then | Any push |
+| D3 | The GitHub remote | Resolved 2026-11-05: `origin` is `https://github.com/colinstephens93/duramaxsimulator.git`, and the branches and tags are pushed | Done |
 | D4 | LBZ rod length: 163.0 mm (status `medium`), or `null`? | 163.0 mm, with a note | 4.1 |
 | D5 | LBZ valve timing and lift (a gap in the research): LLY's values labelled `design`? And amend runbook rule 7 to allow approved `design` values? | Yes, and yes | 4.1 |
 | D6 | LBZ behaviour and look values (not in the research): LLY's values labelled `design`, with copy that claims only what the research supports? | Yes | 4.1 |
@@ -367,7 +367,7 @@ The human decides these. The default is what happens if nobody answers before th
 - **Branches.** `engine-library` is the working branch. `master` is the base. It holds the app before the refactor, at `864f014`. Nobody resets a shared branch (plan section 10).
 - **Checkpoints.** A WIP commit may be made when the human asks to save progress. It is labelled `WIP` in the subject, is not tagged, and does not replace the phase commit.
 - **Phase commits.** One commit per phase, after the gate is approved, on `engine-library`. Tag the commit `phase-N-done`.
-- **Remote.** None at the checkpoint (D3). When the human provides one, push `master`, `engine-library` and the tags, and only then. The rule in the runbook is: do not push unless the human names the remote and asks.
+- **Remote.** `origin` is `https://github.com/colinstephens93/duramaxsimulator.git` (set 2026-11-05, decision D3). Push after an approved gate, or when the human asks, and push `master`, `engine-library` and the tags. The runbook's rule 8 applies: push only when the human names the remote and asks.
 - **Merge.** After the Phase 6 gate, the human merges `engine-library` into `master`.
 - **Rollback.** Create a new branch from a tag (plan section 10). Never reset a branch that others use.
 - **Commit messages.** Write the message to a file outside the repo and run `git commit -F <file>`. End every message with the trailer in D14.
@@ -391,7 +391,7 @@ Plan section 9 has the design risks. These are the ones this review found.
 | Windows PowerShell 5.1 breaks the source files, or the harness uses commands it lacks | [harness-notes.md](harness-notes.md); prompts use `Select-String` and Node scripts |
 | Chrome updates, and the baseline's browser version no longer matches | `baseline:compare` fails on the version. Stop and report. Re-capture only in a logged package |
 | A pass is claimed without its output | Each review entry records every command and its output (section 5.2) |
-| The GitHub repository does not exist, so work is not off this machine | D3. The handoff gives the commands to add the remote |
+| Work exists only on this machine | Resolved 2026-11-05: `origin` is set (D3). Push after each approved gate (section 9). |
 
 ---
 

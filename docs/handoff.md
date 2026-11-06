@@ -2,7 +2,7 @@
 
 Read this first. It says where the work stands and what to do next. It is rewritten at each checkpoint and gate. The history is in [build-log.md](build-log.md).
 
-Last updated: 2026-11-05, at the checkpoint commit `e13290b`. The documentation commit is the one on top of it (`git log --oneline -3`).
+Last updated: 2026-11-05. The code checkpoint is `e13290b`. The documentation commits follow it on `engine-library`, and `origin` is up to date with the branch (section 9).
 
 ---
 
@@ -11,7 +11,7 @@ Last updated: 2026-11-05, at the checkpoint commit `e13290b`. The documentation 
 - **Project.** A Duramax LLY test-cell app (Three.js, Vite 8), being turned into an engine library: any engine runs from its own data, and every number carries a recorded source. The design is [engine-library-plan.md](engine-library-plan.md). The rules and packages are [agent-runbook.md](agent-runbook.md). The plan to the MVP is [mvp-plan.md](mvp-plan.md).
 - **Local repository.** `C:\Users\colin\Documents\DeepSeek\engineroom` (Windows 11).
 - **Branches.** `engine-library` is the working branch. `master` is the base, at `864f014` (the app before the refactor).
-- **Remote: none.** No GitHub remote is configured for this repository, and the GitHub CLI (`gh`) is not installed. **Nothing has been pushed.** Section 9 gives the commands to connect one.
+- **Remote: `origin`** is `https://github.com/colinstephens93/duramaxsimulator.git`. The repository was empty until 2026-11-05, when `master`, `engine-library` and the four tags were pushed to it. Pushes use Git Credential Manager; the GitHub CLI (`gh`) is not installed. Section 9 gives the push commands.
 - **Tags.** `phase-0-start` (`864f014`), `phase-0-done`, `phase-1-done`, and `phase-2-done` (`9194098`). Tags mark approved gates only.
 - **Latest code checkpoint.** `e13290b`, "WIP: Phase 3 checkpoint, registry and environment split (3.1 to 3.2b)". It is a checkpoint, not a gate, and it is not tagged.
 - **Working tree.** Clean after the documentation commit.
@@ -52,7 +52,7 @@ The human decides these. The default applies if nobody answers before the packag
 | --- | --- | --- | --- |
 | D1 | MVP = Phases 0 to 4 and 6; Phase 5 out? | Yes | Phase 4 |
 | D2 | The Phase 2 gap is Phase 3 work; Phase 2 gate not reopened? | Yes | 3.3a |
-| D3 | GitHub remote: URL of an empty repo, or install `gh` and approve creating one | Nothing pushed until then | Any push |
+| D3 | GitHub remote | Resolved 2026-11-05: `origin` is `https://github.com/colinstephens93/duramaxsimulator.git`, and the branches and tags are pushed | Done |
 | D4 | LBZ rod length: 163.0 mm (`medium`) or `null`? | 163.0 mm, with a note | 4.1 |
 | D5 | LBZ valve timing and lift (a gap): LLY's values labelled `design`, and amend rule 7? | Yes, and yes | 4.1 |
 | D6 | LBZ behaviour and look values (not in the research): LLY's values labelled `design`? | Yes | 4.1 |
@@ -94,30 +94,34 @@ The human decides these. The default applies if nobody answers before the packag
 ## 8. How to resume (any AI tool or contributor)
 
 1. Read [AGENTS.md](../AGENTS.md), then this file, then [mvp-plan.md](mvp-plan.md) sections 1, 2 and 4.
-2. `git status --short` should be empty. `git log --oneline -3` should show the documentation commit on top of `e13290b`.
+2. `git status --short` should be empty. `git log --oneline -4` should show the documentation commits on top of `e13290b`. `git ls-remote origin` should show `engine-library` at the SHA that `git rev-parse engine-library` prints, once the latest commit has been pushed.
 3. `npm test` should report 207 passing. `npm run check` should report PASS, with 229 values, 65 records and 0 without a record.
 4. Check section 5 for any decision the next package needs. If one is open, stop and ask the human.
 5. Run the next package's prompt (section 4). Verify it, and log it. Do not commit, tag or push unless the human asks.
 6. On a new machine, `npm run baseline:compare` fails until the git-ignored PNG baseline in `.qa/baseline/` exists. [harness-notes.md](harness-notes.md) gives the steps to recreate it, and says that needs the human's approval.
 
-## 9. Connecting GitHub
+## 9. GitHub
 
-The repository has no remote. The human runs these commands once, with the real URL of an empty repository (D3):
+`origin` is `https://github.com/colinstephens93/duramaxsimulator.git`. The repository was empty until 2026-11-05, when `master`, `engine-library` and the four tags were pushed. GitHub's default branch is `engine-library`.
+
+Push only when the human asks, and only to `origin`:
 
 ```bash
-git remote add origin https://github.com/<owner>/<repo>.git
-git push -u origin master engine-library
+git push origin engine-library
+git push origin master
 git push origin --tags
 ```
 
-Afterwards, check that the remote matches the local branches:
+Check that the remote matches the local branches:
 
 ```bash
 git ls-remote origin
 git rev-parse master engine-library
 ```
 
-Do not push without the human's request. Push only to the remote the human names.
+The local and remote SHAs must match after each push. Never force-push.
+
+Every commit carries the git author configured on this machine. If the repository is public, that author is visible in its history.
 
 ## 10. Files that matter
 

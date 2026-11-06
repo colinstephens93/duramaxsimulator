@@ -3603,3 +3603,22 @@ Open:
 - No GitHub remote (D3). Nothing has been pushed.
 - Decisions D1 to D14: `docs/mvp-plan.md`, section 7; the defaults are also in `docs/handoff.md`, section 5.
 - 3.3a is ready to run. 3.3b to 3.3d, 3.4 to 3.8, and the Phase 3 gate follow.
+
+## 2026-11-05 · Remote set and first push
+
+Files: none changed in the repository. `.git/config` gained the `origin` remote.
+
+Commands:
+- `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/colinstephens93/duramaxsimulator.git`: exit 0, no refs. The repository was empty.
+- `git grep` over the tracked files for private-key headers, GitHub and AWS token formats, `api_key`, `client_secret` and `password`: no matches (exit 1).
+- `git count-objects -vH`: 194 loose objects, 1.88 MiB. The largest tracked file is `tests/baseline/lly-curves.json`, about 3.2 MB.
+- `git remote add origin https://github.com/colinstephens93/duramaxsimulator.git`.
+- `GIT_TERMINAL_PROMPT=0 git push -u origin master engine-library`: `[new branch] master -> master` and `[new branch] engine-library -> engine-library`.
+- `GIT_TERMINAL_PROMPT=0 git push origin --tags`: new tags `phase-0-done`, `phase-0-start`, `phase-1-done` and `phase-2-done`.
+- `GIT_TERMINAL_PROMPT=0 git ls-remote origin`: `HEAD` and `refs/heads/engine-library` at `801caad`; `refs/heads/master` at `864f014`; the four tags at `d9ff068`, `864f014`, `da90116` and `9194098`. These match the local refs.
+
+Judgement calls:
+- `master` was pushed as well as `engine-library`, as plan section 9 describes, so the base branch is on GitHub.
+- The commits carry the git author configured on this machine, as all twelve earlier commits do. The documents do not repeat it.
+- GitHub's default branch is `engine-library`, taken from the remote's HEAD. Left as it is.
+- The documents name the Windows user folder (`C:\Users\colin\...`). If the repository is public, those paths could be made relative.

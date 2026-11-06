@@ -45,7 +45,7 @@ Also: [docs/harness-notes.md](docs/harness-notes.md) (shell rules, especially Wi
 
 - Windows 11. Node 24 (`package.json` requires `^20.19.0` or `>=22.12.0`). Git with `core.autocrlf=true`. Chrome installed.
 - Harness shell: Windows PowerShell 5.1.
-- No GitHub remote yet. See [docs/handoff.md](docs/handoff.md) section 9.
+- GitHub: `origin` is `https://github.com/colinstephens93/duramaxsimulator.git`. Push only when the human asks. See [docs/handoff.md](docs/handoff.md) section 9.
 
 ## Attribution
 

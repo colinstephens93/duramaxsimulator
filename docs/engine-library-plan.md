@@ -490,7 +490,7 @@ Resource rules:
 
 - Edit files with the agent's file tools, or with a Node script that reads and writes UTF-8. Do not read and rewrite source files with PowerShell 5.1 (`Get-Content` and `Set-Content`), which corrupts the label characters.
 - Delete with git or with Node, not `Remove-Item -Recurse`, which can follow directory junctions.
-- Commit at the end of each phase, on the phase branch, using the author and trailer the repo is configured with. Do not push: there is no remote.
+- Commit at the end of each phase, on the phase branch, using the author and trailer the repo is configured with. Push only when the human asks, to the remote the human names. `origin` was set on 2026-11-05; see docs/handoff.md, section 9.
 - Tags mark the start (`phase-0-start`) and each gate (`phase-N-done`). Rollback is a human decision, made by creating a new branch from a tag. Nobody resets a shared branch.
 
 ## 11. Open decisions

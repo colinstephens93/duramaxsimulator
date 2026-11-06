@@ -8,7 +8,7 @@ Read this before you run a harness prompt, and before you write one.
 - **Lead and any other AI tool:** Git Bash on the same machine. Commands in this repository must work in both.
 - **Node** 24 is installed. `package.json` requires `^20.19.0` or `>=22.12.0`.
 - **Git** user: Colin Stephens. `core.autocrlf` is `true`, and the repository stores LF. "LF will be replaced by CRLF" warnings are harmless.
-- **GitHub CLI** (`gh`) is not installed. No remote is configured (see [handoff.md](handoff.md) section 9).
+- **GitHub CLI** (`gh`) is not installed. Pushes use Git Credential Manager. `origin` is set (see [handoff.md](handoff.md) section 9).
 - **Chrome** is installed. Playwright (`playwright-core` 1.64.1) drives it with `channel: 'chrome'`.
 
 ## The baseline browser
