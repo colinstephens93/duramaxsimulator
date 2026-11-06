@@ -532,6 +532,17 @@ export default {
       place: 'MORAINE, OHIO  \u00b7  ENGINE TEST CELL',
       fileStem: 'duramax-lly-test-cell',
     },
+    branding: {
+      floorLabel: 'DMAX  /  TEST CELL 04',
+      signMain: 'DMAX',
+      signSub: 'MORAINE ENGINE PLANT  \u00b7  DYNO TEST CELL 04',
+      consoleHeader: 'DMAX DYNO  //  CELL 04',
+      consoleFooter: 'TEST CELL / MORAINE, OHIO',
+      standMain: 'DMAX',
+      standSub: 'HEAVY DUTY DYNO BEDPLATE  \u00b7  1,000 LB-FT',
+    },
+    // Full-scale rpm of each console bar, as fractions of ratings.redlineRpm.
+    gaugeFullScale: { torque: 2500 / 3250, boost: 1, rail: 1 },
     inspector: {
       displacement: '6,599 cc',
       boreStroke: '103 \u00d7 99 mm',
@@ -573,6 +584,7 @@ export default {
 
     'layout.banks': 'design',
     'ui.display': 'design',
+    'ui.gaugeFullScale': 'design',
     'look.outline': 'design',
     'layout.stationZmm': 'design',
     'layout.throwOffsetDeg': 'design',

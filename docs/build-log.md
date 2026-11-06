@@ -3392,5 +3392,154 @@ Results:
 Phase 2 gate status:
 
 - Exit criteria from plan section 6: `npm test` passes; `npm run check` is clean outside `src/engines/`, with the logged `src/environment.js` exemption until Phase 3.2; every baseline passes on Chrome 157 after the re-capture from phase-0-done (see the re-capture section above).
-- Waiting for human gate approval. Nothing committed or tagged.
+- Gate approved 2026-11-05. Committed as 9194098 and tagged phase-2-done.
 - Commit scope when approved: the Phase 2 work (2.1 to 2.6), the re-captured `tests/baseline/lly-trace.json` and `tests/baseline/lly-geometry.json` (browser version only), the check script change, the plan and this log. The 2.3a rename stays staged as R100 (`src/engine.js` to `src/engines/families/v8-ohv.js`).
+
+## 2026-11-05 · 3.1 Registry, schema and loaders
+
+Files: created `src/engines/index.js`, `src/engines/schema.js`, `tests/registry.test.mjs`; corrected one line in `docs/build-log.md`.
+
+Commands:
+
+- Pre-change `npm test`: 183 tests, 35 suites, 183 pass, 0 fail.
+- Pre-change `npm run check`: `Result: PASS (0 of 5 checks failed)`, with the `src/environment.js` exemption listed.
+- Pre-change `npm run build`: 44 modules; `dist/assets/index-BvQgN-K-.js`; the copy.js `INEFFECTIVE_DYNAMIC_IMPORT` warning printed.
+- Pre-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS, six views PASS (home one delta-1 pixel; others 0/0).
+- Post-change `npm test`: 207 tests, 37 suites, 207 pass, 0 fail, 468.4003 ms. That is 183 plus 24 new tests.
+- Post-change `npm run check`: `Result: PASS (0 of 5 checks failed)`, with the `src/environment.js` exemption still listed.
+- Post-change `npm run build`: 44 modules; `dist/assets/index-BvQgN-K-.js` (unchanged from step 1); the copy.js `INEFFECTIVE_DYNAMIC_IMPORT` warning still printed.
+- Post-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS, all six views PASS (home 0 changed (>8), 1 differing pixel at delta 1; other five 0/0).
+- New files: UTF-8, LF only, no BOM, ASCII.
+  - `src/engines/index.js`: 75 lines, `261172A0F2CACDFC22FA3100736CF678B0EBC74A98A1DB1A757F244F58CD5AFC`.
+  - `src/engines/schema.js`: 133 lines, `6BCA61F6DB01A40C3133A7C6A76A00C08BA7D4F945153816773DE8ADE9A040D6`.
+  - `tests/registry.test.mjs`: 203 lines, `138EEB23088819F582E96187AC25D1B5852472D27C33BC843DDC4941FE3090EF`.
+
+All eleven physics checks pass: family firing order matches the entry; fire intervals are 90° including the wrap; every cylinder has TDC at its fire angle within 1e-6 mm; no piston goes above TDC by more than 1e-9 mm over 0–720° in 0.5° steps; stroke is twice crank radius; cam angle is half crank modulo 360; intake and exhaust durations are inside 720° and peak at the entry lift; each calibration meets peak torque and horsepower within 0.5; audio pulses are four per revolution with bank cadence; walk clearance is finite and positive; all 49 `PART_IDS` resolve through `getSpec`, with no missing IDs.
+
+Provenance: none. No values were added.
+
+Judgement calls:
+
+- `installQaHook` only sets `__ENGINE__` and `__LLY__`; the app wiring belongs to 3.3.
+- `parseEngineParam` is exact and case-sensitive; an absent or empty value returns `requested: null` and no fallback.
+- `validateEntry` checks no units, because the entry has no unit fields.
+- `schema.js` repeats the provenance coverage rule from `scripts/check.mjs`; the duplication is recorded so a later package can make `check.mjs` import the schema helper. Source-ID and null-gap validation remain in `check.mjs`; 3.1 validates object presence and coverage only.
+- `loadEngine` returns the family as well as the entry, so 3.3 can build from it.
+- Curve tables count as one provenance value, matching `check.mjs`; finiteness still walks every number inside them.
+- `COMPONENT_CARDS` is required to be an object; the three copy helpers are required to be functions.
+- The rated-peak test uses a 0.5 tolerance: Allison horsepower computes to 310.17 against 310, and ZF is exact.
+
+Open:
+
+- `src/engines/active.js` still feeds `main.js`, `specs.js` and `collision.js`. `collision.js` lines 13–21 and `specs.js` line 26 read the entry into module-level constants, so they cannot follow a swap. No package covers this.
+- `src/engines/families/v8-ohv.js` imports the LLY entry directly (line 23), and `buildEngine(materials)` takes no entry. No package covers this.
+- The model has no `telemetry()` and no `dispose()`, though plan section 5 lists both. No package names them.
+- Plan section 8 migrations have no package: `kinematics.test.mjs`, `collision.test.mjs`, `audio-pulses.test.mjs` and `tests/helpers/fake-audio.mjs`.
+- The copy.js `INEFFECTIVE_DYNAMIC_IMPORT` warning stays until `src/engines/active.js` is removed.
+
+The stale gate line was found exactly once and changed to: `- Gate approved 2026-11-05. Committed as 9194098 and tagged phase-2-done.`
+
+## 2026-11-05 · 3.2a Split environment into cell and stand
+
+Files: created `src/environment/cell.js` and `src/environment/stand.js`; deleted `src/environment.js`; edited `src/main.js` (import path only), `tests/fixture.test.mjs` (import path and comments only), `scripts/check.mjs` (two exemptions replacing one), and `docs/build-log.md`.
+
+The old file's stand block, lines 729–1241, moved to `stand.js` as `buildStand(context)` and now returns `{ stand, dyno }`. The rest went to `cell.js`: lines 1–727 and 1242–1808, with the `buildStand` call inserted after the floor and before the console. The final merge calls remain at their original point in the same order. `cell.js` exports `buildCeilingFixture` and `buildEnvironment`; `stand.js` imports only Three.js and the utils it needs from `../utils.js`.
+
+The context passes `root`, `register`, `m`, `TAU`, `addGroup`, `iBeam`, `steel`, `yellow`, `rubber`, `black` and `red`. Those are the only cell symbols the moved block reads. The console-only helpers and the original imports remain in `cell.js`.
+
+Commands:
+
+- Pre-change `npm test`: 207 tests, 37 suites, 207 pass, 0 fail.
+- Pre-change `npm run check`: `Result: PASS (0 of 5 checks failed)`, with the `src/environment.js` exemption listed.
+- Pre-change `npm run build`: 44 modules; `dist/assets/index-BvQgN-K-.js`; the copy.js warning printed.
+- Pre-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS, all six views PASS (home one delta-1 pixel; others 0/0).
+- Post-change `npm test`: 207 tests, 37 suites, 207 pass, 0 fail.
+- Post-change `npm run check`: `Result: PASS (0 of 5 checks failed)`.
+  - Names: 6 in `src/environment/cell.js` (lines 282, 397, 398, 431, 830, 871) and 1 in `src/environment/stand.js` (line 291).
+  - Numbers: 2 in `src/environment/cell.js` (line 866).
+  - Encoding PASS, IDs PASS, Provenance PASS (226 values, 64 records, 0 without record).
+- Post-change `npm run build`: 45 modules; `dist/assets/index-Dseb0Pvu.js`. The file name changed because the module boundary changed; the copy.js warning still printed.
+- Post-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS, all six views PASS with 0 changed (>8), 0 differ at all, delta 0.
+
+Provenance: none. No values were added or changed.
+
+Judgement calls:
+
+- The stand context includes only symbols the moved block actually reads. `interactives` and `animated` are not passed because the block does not use them; `register` still writes into `interactives`.
+- `steel`, `yellow`, `rubber`, `black` and `red` are passed as material references, so the moved block keeps the exact objects.
+- `stand.js` imports its geometry helpers from `../utils.js`; `addGroup` and `iBeam` are module-level functions in `cell.js`, passed through the context to avoid a cycle.
+- The original cell imports were left intact, including imports now used only by the stand, to avoid unrelated cleanup.
+- One extra blank line at the call boundary was removed; no statement, value, string, font or colour changed.
+- The dist bundle name changed from `index-BvQgN-K-.js` to `index-Dseb0Pvu.js` as a consequence of the new module boundary.
+- The 3.1 entry gained the missing note that the rated-peak test uses 0.5 tolerance: Allison horsepower computes to 310.17 against 310, while ZF is exact.
+
+Open: 3.2b — branding in the entry, `setBranding`, gauge fractions, stand values in the entry, and removing the exemptions. The Phase 3 gaps from 3.1 remain open: `active.js` and module-level reads in `collision.js`/`specs.js`, the family's direct entry import, missing `telemetry()`/`dispose()`, and the plan section 8 test migrations.
+
+## 2026-11-05 · 3.2b Branding and gauges into the entry
+
+Files: `src/engines/lly/index.js`, `src/environment/cell.js`, `src/environment/stand.js`, `src/main.js`, `scripts/check.mjs`, `docs/build-log.md`.
+
+### Entry
+
+Added `ui.branding` with seven strings copied from the old source: floor label, sign main/sub, console header/footer and stand badge main/sub. Added `ui.gaugeFullScale: { torque: 2500 / 3250, boost: 1, rail: 1 }`, with a comment that these are bar full scales as fractions of `ratings.redlineRpm`. Added the provenance record `'ui.gaugeFullScale': 'design'`.
+
+### Cell
+
+`NEUTRAL_BRANDING` and `NEUTRAL_GAUGE` are neutral, per-key fallbacks. `brandingFromEntry` and `gaugeFromEntry` merge the entry over those defaults. The floor label, wall sign, console header and footer use the current branding. The gauge bars use:
+
+```js
+rpm / (redlineRpm * gaugeFullScale.torque)
+rpm / (redlineRpm * gaugeFullScale.boost)
+rpm / (redlineRpm * gaugeFullScale.rail)
+```
+
+`buildEnvironment(scene, renderer, materials, entry)` now takes the entry. It returns `setBranding(entry)` in addition to the existing keys. `setBranding` rebuilds the floor, sign and badge textures through the same texture helpers used by the build, disposes the old maps, assigns the new ones, updates branding/gauge state, and redraws the console.
+
+The comment "beneath the DMAX sign" became "beneath the sign".
+
+### Stand
+
+`makeStandBadgeTexture(standMain, standSub)` is exported and used by both `buildStand` and `setBranding`. `buildStand` takes `branding` from its context and returns `{ stand, dyno, badge }`, where `badge` is the badge material. No engine name remains in the file.
+
+### Main and check
+
+`main.js` passes `entry` as the fourth `buildEnvironment` argument. `NAME_AND_NUMBER_EXEMPTIONS` is now empty; `exemptionScope()` and `exemptionNote()` print nothing when empty, and the Scope line reads `Scope: src/ and index.html; names and numbers exclude src/engines/ only.`
+
+### Commands
+
+- Pre-change `npm test`: 207 tests, 37 suites, 207 pass, 0 fail.
+- Pre-change `npm run check`: `Result: PASS (0 of 5 checks failed)`, with the two exemption entries listed.
+- Pre-change `npm run build`: 45 modules; `dist/assets/index-Dseb0Pvu.js`; copy.js warning printed.
+- Pre-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS, six views PASS (home one delta-1 pixel; others 0/0).
+- Post-change `npm test`: 207 tests, 37 suites, 207 pass, 0 fail.
+- Post-change `npm run check`:
+
+```text
+Scope: src/ and index.html; names and numbers exclude src/engines/ only.
+Names: PASS (0 matches)
+Numbers: PASS (0 matches)
+Encoding: PASS (0 matches)
+IDs: PASS (0 matches)
+  Compared quoted strings against: lly, lbz, generic-i6.
+Provenance: PASS (0 matches)
+  lly: 229 values, 65 records, 0 without record
+Result: PASS (0 of 5 checks failed)
+```
+
+- Post-change `npm run build`: 45 modules; `dist/assets/index-a5BqzR3z.js`; copy.js warning still printed. The bundle name changed.
+- Post-change `npm run baseline:compare`: exit 0; Trace PASS, Geometry PASS; all six views PASS (home 0 changed (>8), 1 differing pixel at delta 1; the other five 0/0).
+- `git status --short` and `git diff --stat` are recorded in the final report.
+
+Provenance: one record, `'ui.gaugeFullScale': 'design'`, covering three values. No values were changed.
+
+Judgement calls:
+
+- The neutral branding uses no engine name or checked RPM number. Its values are `TEST CELL 04`, `TEST CELL`, `ENGINE TEST CELL`, `TEST CELL 04`, `TEST CELL`, `DYNO`, `HEAVY DUTY DYNO BEDPLATE`.
+- Gauge fallbacks are `1, 1, 1`; entry values override per key.
+- `setBranding` regenerates the floor, sign and badge textures through the same `makeFloorTexture`, `makeSignTexture` and `makeStandBadgeTexture` helpers as the build, so the two paths cannot diverge.
+- Old floor/sign/badge maps are disposed before replacement. `setBranding` redraws the console at its default zero state.
+- `makeStandBadgeTexture` is exported from `stand.js`; the badge material is returned so the cell can replace its map without reaching into the stand.
+- The empty exemption list is represented by `const NAME_AND_NUMBER_EXEMPTIONS = [];`; no placeholder entries remain.
+- The stand's engine values (mounts, pedestal, guard, flywheel and engine centre) were deliberately left in `stand.js`.
+
+Open: the stand's engine values stay in `stand.js` until the human decides. The Phase 3 gaps from 3.1 remain open: `active.js` and module-level reads in `collision.js`/`specs.js`, the family's direct entry import, missing `telemetry()`/`dispose()`, and the plan section 8 test migrations.

@@ -9,7 +9,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createMaterials } from './utils.js';
 import { buildEngine, PART_IDS } from './engines/families/v8-ohv.js';
-import { buildEnvironment } from './environment.js';
+import { buildEnvironment } from './environment/cell.js';
 import { buildWalkWorld, confineOrbitCamera, resolveWalk } from './collision.js';
 import { TestCellAudio } from './audio.js';
 import { mod, strokeAtCycle } from './kinematics.js';
@@ -112,7 +112,7 @@ engine.root.scale.setScalar(0.001);
 engine.root.position.set(0, ENGINE_Y, 0);
 scene.add(engine.root);
 
-const environment = withSeededRandom(() => buildEnvironment(scene, renderer, materials));
+const environment = withSeededRandom(() => buildEnvironment(scene, renderer, materials, entry));
 const audio = new TestCellAudio({ maxRpm: MAX_RPM, boostPeakPsi: entry.turbo.boostPeakPsi, ...entry.audio });
 
 // A small inspection fill keeps the exposed internals legible under X-ray /

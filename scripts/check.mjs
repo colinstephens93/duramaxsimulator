@@ -11,13 +11,7 @@ const SOURCES_PATH = path.join(ROOT, 'docs', 'research', 'sources.md');
 // Files the Names and Numbers rules skip until the phase named here. Encoding, IDs and Provenance still
 // scan them. Matches in an exempt file are counted and printed, so nothing is hidden. Remove an entry in
 // the phase that clears its file.
-const NAME_AND_NUMBER_EXEMPTIONS = [
-  {
-    file: 'src/environment.js',
-    until: 'Phase 3.2',
-    reason: 'cell signage and gauge scales move to the entry (plan section 5, Environment; open decision 4)',
-  },
-];
+const NAME_AND_NUMBER_EXEMPTIONS = [];
 
 const NAME_PATTERN = /\b(lly|duramax|dmax|6600|moraine|bosch|garrett|acdelco|allison|zf|cp3|pf2232|gm|chevrolet|gmc|denso)\b|gt3788[a-z]*/gi;
 const NUMBER_PATTERN = /\b(3,?250|3,?000|3,?200|26,?000)\b/g;
@@ -375,7 +369,8 @@ async function main() {
   checks.push(await checkIds(nonEngineFiles));
   checks.push(await checkProvenance());
 
-  console.log(`Scope: src/ and index.html; names and numbers exclude src/engines/ and ${exemptionScope()}.`);
+  const scope = exemptionScope();
+  console.log(`Scope: src/ and index.html; names and numbers exclude src/engines/${scope ? ` and ${scope}` : ' only'}.`);
   for (const check of checks) printCheck(check);
 
   const failed = checks.filter((check) => check.status === 'FAIL');
