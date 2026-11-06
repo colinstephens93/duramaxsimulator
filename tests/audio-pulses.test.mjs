@@ -4,10 +4,10 @@
 // RPM or frame rate.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { CYLINDERS } from '../src/kinematics.js';
+import { CYLINDERS } from '../src/engines/families/v8-ohv-kinematics.js';
 import { analyze, clock, createAudio, gapStats, mulberry32, scheduleLog, simulate, steady } from './helpers/fake-audio.mjs';
 
-// Mirrors MAX_PULSE_FRAME_S in src/audio.js: frames longer than this are stalls and play no pulses.
+// Mirrors the entry's audio.maxFrameS: frames longer than this are stalls and play no pulses.
 const STALL_S = 0.2;
 const STALL_FRAME = 120; // index of the long frame in the stall scenarios (after two seconds at 60 fps)
 

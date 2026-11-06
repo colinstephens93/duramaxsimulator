@@ -277,7 +277,7 @@ async function captureBuildTimes(context, baseUrl, errors) {
 
   const times = await page.evaluate(async () => {
     const [{ buildEngine }, { createMaterials }] = await Promise.all([
-      import('/src/engine.js'),
+      import('/src/engines/families/v8-ohv.js'),
       import('/src/utils.js'),
     ]);
 

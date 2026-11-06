@@ -10,15 +10,15 @@
     />
     <meta
       name="description"
-      content="Interactive 6.6L Duramax LLY 90-degree V8 turbodiesel engine on an industrial dynamometer test stand."
+      content=""
     />
-    <title>DMAX LLY 6600 — Engine Test Cell</title>
+    <title>Engine Test Cell</title>
     <link rel="preload" as="style" href="/src/styles.css" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <main id="app">
-      <canvas id="webgl" aria-label="Interactive 3D Duramax LLY engine simulation"></canvas>
+      <canvas id="webgl" aria-label="" data-bind-attr="aria-label:ui.canvasAria"></canvas>
       <div class="viewport-fx" aria-hidden="true"></div>
 
       <div id="ui">
@@ -33,8 +33,8 @@
               <span>04</span>
             </div>
             <div class="brand-copy">
-              <div class="brand-title">DURAMAX<span>6600</span></div>
-              <div class="brand-sub">LLY &nbsp;·&nbsp; DMAX MORAINE &nbsp;·&nbsp; ENGINE TEST CELL</div>
+              <div class="brand-title" data-bind-html="ui.header.brandHtml"></div>
+              <div class="brand-sub" data-bind="ui.header.brandSub"></div>
             </div>
           </div>
 
@@ -42,11 +42,11 @@
             <div class="online-pill"><i></i><span>TEST CELL ONLINE</span></div>
             <div class="topsep"></div>
             <div class="top-spec">
-              <span>6.6L V8</span><b>·</b><span>90° OHV</span><b>·</b><span>32 VALVE</span>
+              <span data-bind="ui.header.spec.displacement"></span><b>·</b><span data-bind="ui.header.spec.layout"></span><b>·</b><span data-bind="ui.header.spec.valves"></span>
             </div>
             <div class="toporder">
               <span>FIRING ORDER</span>
-              <b>1–2–7–8–4–5–6–3</b>
+              <b data-bind="ui.header.spec.firingOrder"></b>
             </div>
           </div>
 
@@ -77,8 +77,8 @@
         <aside class="panel side-panel control-panel" id="controlPanel">
           <div class="panel-head">
             <div>
-              <div class="eyebrow">POWERTRAIN CONTROL</div>
-              <h1>LLY // RUN CELL</h1>
+              <div class="eyebrow" data-bind="ui.header.category"></div>
+              <h1 data-bind="ui.header.title"></h1>
             </div>
             <div class="panel-index">01</div>
           </div>
@@ -115,7 +115,8 @@
               class="rpm-slider"
               type="range"
               min="0"
-              max="3250"
+              max="0"
+              data-bind-attr="max:ratings.redlineRpm"
               step="5"
               value="680"
               aria-label="Engine speed setpoint"
@@ -126,11 +127,7 @@
           </div>
 
           <div class="preset-grid" id="presetGrid">
-            <button class="preset" data-preset="0"><b>STOP</b><span>0</span></button>
-            <button class="preset active" data-preset="680"><b>WARM IDLE</b><span>680</span></button>
-            <button class="preset" data-preset="1600"><b>PEAK TQ</b><span>1,600</span></button>
-            <button class="preset" data-preset="3000"><b>PEAK HP</b><span>3,000</span></button>
-            <button class="preset" data-preset="3250"><b>GOVERNOR</b><span>3,250</span></button>
+            <button class="preset" data-preset="0" hidden><b></b><span></span></button>
           </div>
 
           <div class="firing-block">
@@ -142,9 +139,9 @@
             </div>
             <div class="cylinder-strip" id="cylinderStrip" aria-label="Live cylinder firing sequence"></div>
             <div class="firing-meta">
-              <span><b>1–3–5–7</b> PASSENGER</span>
-              <span><b>2–4–6–8</b> DRIVER</span>
-              <span class="fourstroke">720° CYCLE · 90° FIRING INTERVAL</span>
+              <span><b data-bind="ui.header.firing.right"></b> PASSENGER</span>
+              <span><b data-bind="ui.header.firing.left"></b> DRIVER</span>
+              <span class="fourstroke" data-bind="ui.header.firing.cycle"></span>
             </div>
           </div>
         </aside>
@@ -157,8 +154,7 @@
                 <h2>POWER &amp; PRESSURE</h2>
               </div>
               <div class="cal-switch" id="calSwitch" role="group" aria-label="Transmission calibration">
-                <button class="cal-btn active" data-cal="allison" title="Allison 1000 Automatic · 310 hp / 605 lb-ft / 26,000 psi">ALLISON 1000</button>
-                <button class="cal-btn" data-cal="zf" title="ZF S6-650 6-Speed Manual · 300 hp / 520 lb-ft / 23,000 psi">ZF S6-650</button>
+                <button class="cal-btn" data-cal="" hidden></button>
               </div>
             </div>
 
@@ -191,7 +187,7 @@
             </div>
             <div class="dyno-chart-wrap">
               <canvas id="dynoChart" width="640" height="190"></canvas>
-              <div class="chart-axis"><span>0</span><span>800</span><span>1600</span><span>2400</span><span>3250 RPM</span></div>
+              <div class="chart-axis"><span data-bind="ui.telemetry.chartAxis.0"></span><span data-bind="ui.telemetry.chartAxis.1"></span><span data-bind="ui.telemetry.chartAxis.2"></span><span data-bind="ui.telemetry.chartAxis.3"></span><span data-bind="ui.telemetry.chartAxis.4"></span></div>
             </div>
 
             <div class="data-grid">
@@ -201,7 +197,7 @@
                 <div class="mini-bar"><i id="railBar" style="width:27%"></i></div>
               </div>
               <div class="data-cell boost">
-                <div class="data-title"><span>GT3788VA BOOST</span><i></i></div>
+                <div class="data-title"><span data-bind="ui.telemetry.boostTitle"></span><i></i></div>
                 <div class="data-value"><b id="boostVal">1.2</b><span>psi</span></div>
                 <div class="mini-bar"><i id="boostBar" style="width:5%"></i></div>
               </div>
@@ -227,7 +223,7 @@
               </div>
             </div>
             <div class="telemetry-foot">
-              <span id="calRailNote">ALLISON 1000 · CP3.3 · 26,000 PSI MAX</span>
+              <span id="calRailNote"></span>
               <span>CELL LOAD: DYNO DAMPED</span>
             </div>
           </aside>
@@ -243,10 +239,7 @@
             <div class="inspector-empty" id="inspectorEmpty">
               <p>Click any engine component to highlight it and open its engineering data card.</p>
               <div class="quick-parts">
-                <button data-inspect="turbo">TURBO</button>
-                <button data-inspect="valvetrain">VALVETRAIN</button>
-                <button data-inspect="cp3">CP3.3</button>
-                <button data-inspect="block">BLOCK</button>
+                
               </div>
               <div class="inspect-reticle" aria-hidden="true">
                 <span></span><i></i><b>3D PICK ENABLED</b>
@@ -259,9 +252,9 @@
                 <path d="M110 58h120" stroke-dasharray="2 5" />
               </svg>
               <div class="inspector-mini-specs">
-                <div><span>DISPLACEMENT</span><b>6,599 cc</b></div>
-                <div><span>BORE / STROKE</span><b>103 × 99 mm</b></div>
-                <div><span>DRY MASS</span><b>835 lb</b></div>
+                <div><span>DISPLACEMENT</span><b data-bind="ui.inspector.displacement"></b></div>
+                <div><span>BORE / STROKE</span><b data-bind="ui.inspector.boreStroke"></b></div>
+                <div><span>DRY MASS</span><b data-bind="ui.inspector.dryMass"></b></div>
               </div>
             </div>
             <div class="inspector-content" id="inspectorContent" hidden>
@@ -330,7 +323,7 @@
               <span><b id="walkRpm">680</b> RPM</span>
               <span><b id="walkHp">55</b> HP</span>
               <span><b id="walkBoost">0.6</b> PSI BOOST</span>
-              <span class="walk-engine">LLY 6600</span>
+              <span class="walk-engine" data-bind="ui.walk.engineLabel"></span>
             </div>
             <div class="walk-controls">
               <button id="walkStartBtn" class="walk-btn">STOP ENGINE</button>
@@ -347,7 +340,7 @@
         </div>
 
         <div class="hover-tag" id="hoverTag" hidden>
-          <span id="hoverName">BOSCH CP3.3</span>
+          <span id="hoverName"></span>
           <small>CLICK TO INSPECT</small>
         </div>
 
@@ -362,7 +355,7 @@
           <div class="modal-backdrop" data-close-modal></div>
           <div class="modal-card">
             <button class="modal-close" id="modalClose" aria-label="Close">×</button>
-            <div class="eyebrow">LLY SIMULATION GUIDE</div>
+            <div class="eyebrow" data-bind="ui.help.eyebrow"></div>
             <h2>TEST CELL OPERATION</h2>
             <div class="modal-grid">
               <div>
@@ -389,8 +382,8 @@
               </div>
             </div>
             <div class="modal-footer">
-              <span>DMAX TEST CELL 04 · MORAINE, OHIO</span>
-              <span>LLY 6.6L / 402.62 CID</span>
+              <span data-bind="ui.help.footerLeft"></span>
+              <span data-bind="ui.help.footerRight"></span>
             </div>
           </div>
         </div>
@@ -400,26 +393,22 @@
             <div class="eyebrow">ENGINEERING DATA SHEET</div>
             <button id="closeSpecSheet" class="modal-close">×</button>
           </div>
-          <h2>6.6L DURAMAX LLY</h2>
+          <h2 data-bind="ui.specSheet.title"></h2>
           <div class="spec-sheet-grid">
-            <div><span>DISPLACEMENT</span><b>6,599 cc / 402.62 CID</b></div>
-            <div><span>CONFIGURATION</span><b>90° V8 · OHV · 32V</b></div>
-            <div><span>BORE × STROKE</span><b>103.00 × 99.00 mm</b></div>
-            <div><span>BORE/STROKE</span><b>1.04 : 1</b></div>
-            <div><span>FIRING ORDER</span><b>1–2–7–8–4–5–6–3</b></div>
-            <div><span>COMPRESSION</span><b>17.5:1 / 16.8:1</b></div>
-            <div><span>PEAK TORQUE</span><b>605 / 520 lb-ft @ 1,600</b></div>
-            <div><span>PEAK POWER</span><b>310 / 300 hp @ 3,000</b></div>
-            <div><span>GOVERNED SPEED</span><b>3,250 RPM</b></div>
-            <div><span>OIL CAPACITY</span><b>10 US qt · PF2232</b></div>
-            <div><span>DRY MASS</span><b>≈ 835 lb</b></div>
-            <div><span>ENVELOPE</span><b>30 × 30 × 32 in</b></div>
+            <div><span>DISPLACEMENT</span><b data-bind="ui.specSheet.displacement"></b></div>
+            <div><span>CONFIGURATION</span><b data-bind="ui.specSheet.configuration"></b></div>
+            <div><span>BORE × STROKE</span><b data-bind="ui.specSheet.boreStroke"></b></div>
+            <div><span>BORE/STROKE</span><b data-bind="ui.specSheet.boreStrokeRatio"></b></div>
+            <div><span>FIRING ORDER</span><b data-bind="ui.specSheet.firingOrder"></b></div>
+            <div><span>COMPRESSION</span><b data-bind="ui.specSheet.compression"></b></div>
+            <div><span>PEAK TORQUE</span><b data-bind="ui.specSheet.peakTorque"></b></div>
+            <div><span>PEAK POWER</span><b data-bind="ui.specSheet.peakPower"></b></div>
+            <div><span>GOVERNED SPEED</span><b data-bind="ui.specSheet.governedSpeed"></b></div>
+            <div><span>OIL CAPACITY</span><b data-bind="ui.specSheet.oilCapacity"></b></div>
+            <div><span>DRY MASS</span><b data-bind="ui.specSheet.dryMass"></b></div>
+            <div><span>ENVELOPE</span><b data-bind="ui.specSheet.envelope"></b></div>
           </div>
-          <p class="spec-footnote">
-            Real-time mechanical &amp; acoustic visualisation: exact 99 mm-stroke crank-slider motion, cam-in-block ratio 0.5×,
-            16 pushrods and 16 valve bridges operating 32 valves, dual transmission calibrations (Allison 1000 / ZF S6-650),
-            and phase-locked Web Audio API synthesis. Visualisation only — not OEM service data.
-          </p>
+          <p class="spec-footnote" data-bind="ui.specSheet.footnote"></p>
         </div>
       </div>
     </main>

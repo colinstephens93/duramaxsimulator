@@ -1,11 +1,6 @@
 import * as THREE from 'three';
-import { CYLINDERS, mod } from './kinematics.js';
-import lly from './engines/lly/index.js';
-
-const MAX_RPM = lly.ratings.redlineRpm;
-// Frames longer than this are stalls (tab switch, shader compile), not motion worth
-// replaying as a burst of cylinder pulses.
-const MAX_PULSE_FRAME_S = lly.audio.maxFrameS;
+import { CYLINDERS } from './engines/families/v8-ohv-kinematics.js';
+import { mod } from './kinematics.js';
 
 function makeSaturationCurve(amount = 2.4, samples = 1024) {
   const curve = new Float32Array(samples);
@@ -36,7 +31,8 @@ function makeNoiseBuffer(ctx, seconds = 2.5) {
 }
 
 export class TestCellAudio {
-  constructor() {
+  constructor(config) {
+    this.config = config;
     this.ctx = null;
     this.initialized = false;
     this.enabled = true; // Active by default once browser unlocks audio
@@ -114,14 +110,14 @@ export class TestCellAudio {
     // Primary firing frequency (4 pulses per rev on 4-stroke V8)
     const firingOsc = ctx.createOscillator();
     firingOsc.type = 'sawtooth';
-    firingOsc.frequency.value = 45.3;
+    firingOsc.frequency.value = this.config.baseToneHz;
 
     // Cross-plane 90° V8 bank cadence (2 pulses per rev)
     const bankOsc = ctx.createOscillator();
     bankOsc.type = 'triangle';
-    bankOsc.frequency.value = 22.65;
+    bankOsc.frequency.value = this.config.baseToneHz / 2;
     const bankGain = ctx.createGain();
-    bankGain.gain.value = 0.65;
+    bankGain.gain.value = this.config.bankCadence ? 0.65 : 0;
 
     // Crankshaft fundamental (1 pulse per rev)
     const crankOsc = ctx.createOscillator();
@@ -176,7 +172,7 @@ export class TestCellAudio {
     this.mechGain = mechGain;
 
     // -----------------------------------------------------------------------
-    // 3. Garrett GT3788VA VNT Turbo Whistle & Boost Rush
+    // 3. Turbo whistle & boost rush
     // -----------------------------------------------------------------------
     const whistleOsc = ctx.createOscillator();
     whistleOsc.type = 'sine';
@@ -225,7 +221,7 @@ export class TestCellAudio {
     this.boostGain = boostGain;
 
     // -----------------------------------------------------------------------
-    // 4. Denso 12V Gear-Reduction Starter Motor Bus
+    // 4. Starter motor bus
     // -----------------------------------------------------------------------
     const starterOsc = ctx.createOscillator();
     starterOsc.type = 'sawtooth';
@@ -312,38 +308,40 @@ export class TestCellAudio {
     const ctx = this.ctx;
     const now = ctx.currentTime + delay;
 
-    const loadNorm = THREE.MathUtils.clamp((rpm - 550) / (MAX_RPM - 550), 0, 1);
+    const loadNorm = THREE.MathUtils.clamp((rpm - 550) / (this.config.maxRpm - 550), 0, 1);
     const railNorm = THREE.MathUtils.clamp((rail - 5000) / 21000, 0.15, 1);
     // Keep individual impulses crisper at idle/slow-motion and smoothly blended at high RPM
     const rateAtten = slowMotion ? 1.15 : THREE.MathUtils.lerp(1.0, 0.42, loadNorm);
 
-    // 1. Bosch CP3.3 / solenoid injector pilot + main knock clatter
-    const clickSrc = ctx.createBufferSource();
-    clickSrc.buffer = this.noiseBuffer;
-    // Slight random offset into the 2.5s noise buffer
-    const offset = Math.random() * 1.8;
+    if (this.config.injectorKnock) {
+      // 1. Injector pilot + main knock clatter
+      const clickSrc = ctx.createBufferSource();
+      clickSrc.buffer = this.noiseBuffer;
+      // Slight random offset into the 2.5s noise buffer
+      const offset = Math.random() * 1.8;
 
-    const clickFilter = ctx.createBiquadFilter();
-    clickFilter.type = 'bandpass';
-    // Right vs Left bank slight acoustic formant difference + cutaway brightness
-    const bankShift = cylinder.bank === 'R' ? 1.04 : 0.96;
-    const xrayBoost = cutaway ? 1.22 : 1.0;
-    clickFilter.frequency.value = (2150 + railNorm * 950) * bankShift * xrayBoost;
-    clickFilter.Q.value = 3.6;
+      const clickFilter = ctx.createBiquadFilter();
+      clickFilter.type = 'bandpass';
+      // Right vs Left bank slight acoustic formant difference + cutaway brightness
+      const bankShift = cylinder.bank === 'R' ? 1.04 : 0.96;
+      const xrayBoost = cutaway ? 1.22 : 1.0;
+      clickFilter.frequency.value = (2150 + railNorm * 950) * bankShift * xrayBoost;
+      clickFilter.Q.value = 3.6;
 
-    const clickGain = ctx.createGain();
-    const peakClick = (0.14 + railNorm * 0.11) * rateAtten * (cutaway ? 1.25 : 1.0);
-    clickGain.gain.setValueAtTime(0.0001, now);
-    // Pilot injection pre-click (4 ms before main) + main injection peak
-    clickGain.gain.linearRampToValueAtTime(peakClick * 0.55, now + 0.002);
-    clickGain.gain.linearRampToValueAtTime(0.015, now + 0.005);
-    clickGain.gain.linearRampToValueAtTime(peakClick, now + 0.007);
-    clickGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.026);
+      const clickGain = ctx.createGain();
+      const peakClick = (0.14 + railNorm * 0.11) * rateAtten * (cutaway ? 1.25 : 1.0);
+      clickGain.gain.setValueAtTime(0.0001, now);
+      // Pilot injection pre-click (4 ms before main) + main injection peak
+      clickGain.gain.linearRampToValueAtTime(peakClick * 0.55, now + 0.002);
+      clickGain.gain.linearRampToValueAtTime(0.015, now + 0.005);
+      clickGain.gain.linearRampToValueAtTime(peakClick, now + 0.007);
+      clickGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.026);
 
-    clickSrc.connect(clickFilter);
-    clickFilter.connect(clickGain);
-    clickGain.connect(this.panner);
-    clickSrc.start(now, offset, 0.032);
+      clickSrc.connect(clickFilter);
+      clickFilter.connect(clickGain);
+      clickGain.connect(this.panner);
+      clickSrc.start(now, offset, 0.032);
+    }
 
     // 2. Cylinder power-stroke combustion thump
     const thumpOsc = ctx.createOscillator();
@@ -364,24 +362,24 @@ export class TestCellAudio {
     thumpOsc.stop(now + 0.045);
   }
 
-  update(dt, state, camera) {
+  update(dt, frame, camera) {
     if (!this.isActive()) {
-      this.lastCrankAngle = state.crankAngle;
+      this.lastCrankAngle = frame.crankAngle;
       return;
     }
 
     const ctx = this.ctx;
     const now = ctx.currentTime;
-    const rpm = Math.max(0, state.rpm || 0);
-    const timeScale = state.slowMotion ? 0.12 : 1.0;
+    const rpm = Math.max(0, frame.rpm || 0);
+    const timeScale = frame.slowMotion ? 0.12 : 1.0;
     const effectiveRpm = rpm * timeScale;
-    const firing = Boolean(state.fuel && rpm > 80);
-    const starting = Boolean(state.starting);
-    const telemetry = state._telemetry || {};
-    const rail = telemetry.rail || 7050;
+    const firing = Boolean(frame.fuel && rpm > this.config.firingAboveRpm);
+    const starting = Boolean(frame.starting);
+    const telemetry = frame.telemetry;
+    const rail = telemetry.rail;
     const boost = telemetry.boost || 0;
-    const vane = telemetry.vane ?? 62;
-    const cutaway = Boolean(state.cutaway);
+    const vane = telemetry.vane;
+    const cutaway = Boolean(frame.cutaway);
 
     // Update 3D listener pose from Three.js camera
     if (camera && ctx.listener) {
@@ -414,20 +412,20 @@ export class TestCellAudio {
 
     // 1. Continuous 90° V8 Exhaust & Crankcase Rumble
     const crankHz = Math.max(4, effectiveRpm / 60);
-    const firingHz = Math.max(12, (effectiveRpm * 4) / 60);
-    const rpmNorm = THREE.MathUtils.clamp(rpm / MAX_RPM, 0, 1);
+    const firingHz = Math.max(12, (effectiveRpm * this.config.pulsesPerRev) / 60);
+    const rpmNorm = THREE.MathUtils.clamp(rpm / this.config.maxRpm, 0, 1);
 
     this.firingOsc.frequency.setTargetAtTime(firingHz, now, 0.03);
     this.bankOsc.frequency.setTargetAtTime(firingHz * 0.5, now, 0.03);
     this.crankOsc.frequency.setTargetAtTime(crankHz, now, 0.03);
 
     const cutoff = firing
-      ? 115 + rpmNorm * 410 + (boost / 23) * 95
+      ? 115 + rpmNorm * 410 + (boost / this.config.boostPeakPsi) * 95
       : 70 + rpmNorm * 120;
     this.exhaustFilter.frequency.setTargetAtTime(cutoff, now, 0.04);
 
     const rumbleLevel = firing
-      ? THREE.MathUtils.lerp(0.24, 0.42, rpmNorm) * (state.slowMotion ? 0.65 : 1.0)
+      ? THREE.MathUtils.lerp(0.24, 0.42, rpmNorm) * (frame.slowMotion ? 0.65 : 1.0)
       : rpm > 15
         ? THREE.MathUtils.lerp(0.02, 0.09, rpmNorm)
         : 0;
@@ -445,9 +443,9 @@ export class TestCellAudio {
         : 0;
     this.mechGain.gain.setTargetAtTime(mechLevel, now, 0.05);
 
-    // 3. Garrett GT3788VA VNT Turbo Whistle & Boost Air Rush
+    // 3. Turbo whistle & boost air rush
     const targetTurboNorm = firing
-      ? THREE.MathUtils.clamp(0.12 + rpmNorm * 0.65 + (boost / 23) * 0.35, 0, 1)
+      ? THREE.MathUtils.clamp(0.12 + rpmNorm * 0.65 + (boost / this.config.boostPeakPsi) * 0.35, 0, 1)
       : rpm > 30
         ? rpmNorm * 0.15
         : 0;
@@ -461,30 +459,30 @@ export class TestCellAudio {
     const vaneFactor = THREE.MathUtils.clamp(vane / 100, 0.15, 1);
     const whistleHz =
       (1320 + this.smoothedTurboNorm * 3150 + vaneFactor * 240) *
-      (state.slowMotion ? 0.45 : 1.0);
+      (frame.slowMotion ? 0.45 : 1.0);
     this.whistleOsc.frequency.setTargetAtTime(whistleHz, now, 0.05);
     this.whistleHarmOsc.frequency.setTargetAtTime(whistleHz * 1.498, now, 0.05);
 
     // VNT whistle is prominent when vanes are closed at idle/mid-range and under spool
     const whistleGainTarget =
-      rpm > 80
+      this.config.turboWhistle && rpm > this.config.firingAboveRpm
         ? (0.012 + this.smoothedTurboNorm * 0.042) * (0.65 + vaneFactor * 0.55)
         : 0;
     this.whistleGain.gain.setTargetAtTime(whistleGainTarget, now, 0.06);
 
     this.boostFilter.frequency.setTargetAtTime(520 + this.smoothedTurboNorm * 1650, now, 0.05);
-    const boostWhooshTarget = firing ? (boost / 23) * 0.085 : 0;
+    const boostWhooshTarget = this.config.turboWhistle && firing ? (boost / this.config.boostPeakPsi) * 0.085 : 0;
     this.boostGain.gain.setTargetAtTime(boostWhooshTarget, now, 0.06);
 
-    // 4. Denso Gear-Reduction Starter Whine (active during cranking phase)
+    // 4. Starter whine (active during cranking phase)
     if (starting && rpm < 600) {
       // Compression ripple as cylinders pass TDC during starter cranking
-      const ripple = 1 + 0.16 * Math.sin((state.crankAngle * Math.PI) / 45);
+      const ripple = 1 + 0.16 * Math.sin((frame.crankAngle * Math.PI) / 45);
       const baseStarterHz = (145 + (rpm / 220) * 65) * ripple;
       this.starterOsc.frequency.setTargetAtTime(baseStarterHz, now, 0.015);
       this.starterMeshOsc.frequency.setTargetAtTime(baseStarterHz * 3.0, now, 0.015);
       this.starterFilter.frequency.setTargetAtTime(380 + rpm * 0.9, now, 0.02);
-      const starterVol = !state.fuel ? 0.16 : 0.07;
+      const starterVol = !frame.fuel ? 0.16 : 0.07;
       this.starterGain.gain.setTargetAtTime(starterVol, now, 0.025);
     } else {
       this.starterGain.gain.setTargetAtTime(0, now, 0.04);
@@ -494,10 +492,10 @@ export class TestCellAudio {
     // Walk every firing angle the crank passed this frame, however many laps that
     // is, and delay each pulse to the point in the frame where its cylinder crossed
     // it, so the cadence stays even at any RPM and frame rate instead of bunching up
-    // on frame boundaries. Stalls (frames over MAX_PULSE_FRAME_S) are skipped rather
+    // on frame boundaries. Stalls (frames over maxFrameS) are skipped rather
     // than replayed; the next frame re-anchors on the live crank angle.
     const frameAdvance = effectiveRpm * 6 * dt;
-    if (this.lastCrankAngle !== null && firing && dt <= MAX_PULSE_FRAME_S) {
+    if (this.lastCrankAngle !== null && firing && dt <= this.config.maxFrameS) {
       const prev = this.lastCrankAngle;
       for (const cyl of CYLINDERS) {
         let distFromPrev = mod(cyl.fireAngle - prev, 720) || 720;
@@ -506,13 +504,13 @@ export class TestCellAudio {
             rpm,
             rail,
             cutaway,
-            slowMotion: state.slowMotion,
+            slowMotion: frame.slowMotion,
             delay: (distFromPrev / frameAdvance) * dt,
           });
           distFromPrev += 720;
         }
       }
     }
-    this.lastCrankAngle = state.crankAngle;
+    this.lastCrankAngle = frame.crankAngle;
   }
 }

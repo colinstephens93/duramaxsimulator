@@ -1,24 +1,25 @@
-// The mechanical model in src/kinematics.js: layout, firing order, exact crank-slider motion, valve
-// timing, and the calibration spec points. Plus the cam-driven valve rows the engine actually animates.
+// The mechanical model in src/kinematics.js and src/engines/families/v8-ohv-kinematics.js:
+// layout, firing order, exact crank-slider motion, valve timing, calibration points and cam-driven valve rows.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { DEG, camshaftAngleDeg, mod } from '../src/kinematics.js';
 import {
   CALIBRATIONS,
   CYLINDERS,
-  DEG,
   FIRING_ORDER,
   LLY,
   VALVE_TIMING,
-  camshaftAngleDeg,
   cylinderState,
-  horsepowerAtRpm,
-  mod,
   pistonKinematics,
+  valveLift,
+} from '../src/engines/families/v8-ohv-kinematics.js';
+import lly from '../src/engines/lly/index.js';
+import {
+  horsepowerAtRpm,
   railPressureAtRpm,
   torqueAtRpm,
-  valveLift,
-} from '../src/kinematics.js';
-import { EngineBuilder, LOBE_LIFT } from '../src/engine.js';
+} from '../src/core/telemetry.js';
+import { EngineBuilder, LOBE_LIFT } from '../src/engines/families/v8-ohv.js';
 
 const near = (actual, expected, tolerance, what) =>
   assert.ok(Math.abs(actual - expected) <= tolerance, `${what}: ${actual} is not within ${tolerance} of ${expected}`);
@@ -139,9 +140,9 @@ describe('cam-driven valve rows (the geometry the engine animates)', () => {
 describe('calibration curves hit the quoted spec points', () => {
   for (const [key, calibration] of Object.entries(CALIBRATIONS)) {
     it(calibration.label, () => {
-      near(torqueAtRpm(LLY.peakTorqueRpm, key), calibration.peakTorqueLbFt, 0.5, 'torque at the torque speed (lb-ft)');
-      near(horsepowerAtRpm(LLY.peakHpRpm, key), calibration.peakHp, 0.5, 'power at the power speed (hp)');
-      near(railPressureAtRpm(LLY.redlineRpm, key), calibration.maxRailPsi, 0.01, 'rail pressure at the governor (psi)');
+      near(torqueAtRpm(lly, lly.ratings.calibrations[key].peakTorqueRpm, key), calibration.peakTorqueLbFt, 0.5, 'torque at the torque speed (lb-ft)');
+      near(horsepowerAtRpm(lly, lly.ratings.calibrations[key].peakPowerRpm, key), calibration.peakHp, 0.5, 'power at the power speed (hp)');
+      near(railPressureAtRpm(lly, LLY.redlineRpm, key), calibration.maxRailPsi, 0.01, 'rail pressure at the governor (psi)');
     });
   }
 });

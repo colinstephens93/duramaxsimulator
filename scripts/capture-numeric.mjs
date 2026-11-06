@@ -11,22 +11,24 @@ import {
   STATION_Z,
   VALVE_TIMING,
   activeFiringCylinder,
-  boostAtRpm,
-  camshaftAngleDeg,
-  coolantAtRpm,
   crankPinWorld,
-  cycleAngle,
   cylinderState,
+  pistonKinematics,
+  valveLift,
+  valveVelocity,
+} from '../src/engines/families/v8-ohv-kinematics.js';
+import { camshaftAngleDeg, cycleAngle } from '../src/kinematics.js';
+import lly from '../src/engines/lly/index.js';
+import {
+  boostAtRpm,
+  coolantAtRpm,
   egtAtRpm,
   horsepowerAtRpm,
   oilPressureAtRpm,
-  pistonKinematics,
   railPressureAtRpm,
   torqueAtRpm,
-  valveLift,
-  valveVelocity,
   vaneAtRpm,
-} from '../src/kinematics.js';
+} from '../src/core/telemetry.js';
 
 const RPM_START = 0;
 const RPM_END = 4000;
@@ -76,9 +78,9 @@ export function captureNumericBaseline() {
   const calibrations = {};
   for (const key of Object.keys(CALIBRATIONS)) {
     calibrations[key] = {
-      torqueAtRpm: rpm.map((value) => torqueAtRpm(value, key)),
-      horsepowerAtRpm: rpm.map((value) => horsepowerAtRpm(value, key)),
-      railPressureAtRpm: rpm.map((value) => railPressureAtRpm(value, key)),
+      torqueAtRpm: rpm.map((value) => torqueAtRpm(lly, value, key)),
+      horsepowerAtRpm: rpm.map((value) => horsepowerAtRpm(lly, value, key)),
+      railPressureAtRpm: rpm.map((value) => railPressureAtRpm(lly, value, key)),
     };
   }
 
@@ -116,11 +118,11 @@ export function captureNumericBaseline() {
     },
     rpm,
     calibrations,
-    boostAtRpm: rpm.map((value) => boostAtRpm(value)),
-    vaneAtRpm: rpm.map((value) => vaneAtRpm(value)),
-    egtAtRpm: rpm.map((value) => egtAtRpm(value)),
-    oilPressureAtRpm: rpm.map((value) => oilPressureAtRpm(value)),
-    coolantAtRpm: rpm.map((value) => coolantAtRpm(value)),
+    boostAtRpm: rpm.map((value) => boostAtRpm(lly, value)),
+    vaneAtRpm: rpm.map((value) => vaneAtRpm(lly, value)),
+    egtAtRpm: rpm.map((value) => egtAtRpm(lly, value)),
+    oilPressureAtRpm: rpm.map((value) => oilPressureAtRpm(lly, value)),
+    coolantAtRpm: rpm.map((value) => coolantAtRpm(lly, value)),
     crankAngles,
     camshaftAngleDeg: crankAngles.map((angle) => camshaftAngleDeg(angle)),
     activeFiringCylinder: crankAngles.map((angle) => withCylinderNumber(activeFiringCylinder(angle))),

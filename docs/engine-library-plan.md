@@ -450,6 +450,7 @@ Resource rules:
 - **Numbers:** 3250, 3000, 3200 and 26000 outside `src/engines/`. Clean from Phase 2. Some matches may be legitimate; the agent logs each one it keeps.
 - **Encoding:** the mojibake sequences `Â`, `â€` and `âˆ`.
 - **IDs:** engine-ID strings outside the registry.
+- **Exemptions:** `src/environment.js` is exempt from Names and Numbers until Phase 3.2 (open decision 4). The exemption is listed in `scripts/check.mjs`, and every hit in an exempt file is still printed.
 
 ## 9. Risks
 
@@ -485,6 +486,7 @@ These are the decisions that were, or still are, with you. Values are not on thi
 1. **Injector wording in the copy.** The brief says "piezoelectric". The research favours solenoid for the LLY and the LBZ (see [research/lly.md](research/lly.md) section 6). Keep the brief's wording, or change it in Phase 6. This is a wording decision, not a value.
 2. **Console chair inside the walk circle. Decided 2026-10-31: exempt it now, and move it in Phase 6.** Checked on 2026-10-29 against `src/environment.js` (console group at lines 1245–1248, chair at lines 1416–1447): the seat's nearest corner is 0.91 m from the walk-circle centre (0, −0.05 m), and the nearest leg tip is 1.02 m. Both are inside the 1.03 m circle. The Phase 3 footprint test exempts the chair by name, with the exemption logged. Phase 6 moves the chair outside the circle, removes the exemption, and re-captures the baselines.
 3. **Cut line (Q68).** Drop Phase 5 first, then LBZ. Never cut Phases 0 to 3.
+4. **Environment signage and gauge scales (`src/environment.js`). Decided 2026-11-05: exempt the file from the Names and Numbers checks until Phase 3.2.** Phase 3.2 moves the cell signage to `cell.setBranding(entry)` and makes the gauge scales fractions of `ratings.redlineRpm`. Encoding, IDs and Provenance still apply to the file.
 
 Decided by the research, with no sign-off needed:
 

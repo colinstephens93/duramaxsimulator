@@ -1,6 +1,5 @@
-import { CYLINDER_BY_NUMBER } from './kinematics.js';
-import lly from './engines/lly/index.js';
-import { COMPONENT_CARDS, pistonCard, rodCard, engineSummary } from './engines/lly/copy.js';
+import { CYLINDER_BY_NUMBER } from './engines/families/v8-ohv-kinematics.js';
+import { entry, COMPONENT_CARDS, pistonCard, rodCard, engineSummary } from './engines/active.js';
 
 const specsByNumber = {};
 for (const c of CYLINDER_BY_NUMBER.values()) {
@@ -24,4 +23,4 @@ export function getSpec(id, cylinderNumber = null) {
 }
 
 export const INSPECTABLE_IDS = Object.keys(COMPONENT_SPECS);
-export const ENGINE_SPEC_SUMMARY = engineSummary(lly.layout.firingOrder.join('-'));
+export const ENGINE_SPEC_SUMMARY = engineSummary(entry.layout.firingOrder.join('-'));

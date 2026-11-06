@@ -2008,3 +2008,1389 @@ The file was regenerated as UTF-8 with Node, and the comparison then passed 33/0
 The Phase 2 exit list is the Names section of the 1.1c entry: 199 six-module matches of the 246 total, with the remaining 47 in `index.html`, `src/environment.js` and `src/styles.css`.
 
 Gate: waiting for human approval. No commit, tag, or Phase 2 work has been started.
+
+## 2026-11-01 · 2.1 Telemetry moved to core
+
+Files: `src/core/telemetry.js` (new); `src/kinematics.js`, `src/main.js`, `scripts/capture-numeric.mjs`, `tests/kinematics.test.mjs` (changed); `tests/telemetry.test.mjs` (new); `docs/build-log.md` (changed). No entry, baseline, PNG, archive, doc other than the log, or test assertion changed.
+
+### Telemetry core
+
+`src/core/telemetry.js` imports nothing and names no engine. It exports:
+
+`torqueAtRpm(engine, rpm, calibration)`, `horsepowerAtRpm(engine, rpm, calibration)`, `railPressureAtRpm(engine, rpm, calibration)`, `boostAtRpm(engine, rpm)`, `vaneAtRpm(engine, rpm)`, `egtAtRpm(engine, rpm)`, `oilPressureAtRpm(engine, rpm)`, `coolantAtRpm(engine, rpm)` and `telemetryValues(engine, { firing, rpm, calibration })`.
+
+Calibration is required; there is no default. The helper reads `interp`: `smoothstep` uses `t * t * (3 - 2 * t)`, `linear` uses `t`, and every table keeps `y0 + (y1 - y0) * s`. Rail interpolates in psi, then scales by `maxRailPsi / scaleTo`. `round` is applied only where the curve flags it. `horsepowerAtRpm` keeps `5252`.
+
+### Removed literals mapped to the entry
+
+| Source | Removed literal | Entry path |
+| --- | --- | --- |
+| `kinematics.js:247` | torque cutoff `40` | `curves.torque.zeroBelowRpm` |
+| `kinematics.js:252-279` | ZF and Allison torque point pairs | `curves.torque.points.zf` / `.allison` |
+| `kinematics.js:294` | `5252` | Not an entry value; formula constant stays in core |
+| `kinematics.js:298` | rail cutoff `25` | `curves.rail.zeroBelowRpm` |
+| `kinematics.js:299` | `23000 / 26000` | `ratings.calibrations.zf.maxRailPsi` / `curves.rail.scaleTo` |
+| `kinematics.js:300-308` | rail point pairs | `curves.rail.points` |
+| `kinematics.js:319` | rail return `26000` | `curves.rail.scaleTo` |
+| `kinematics.js:323` | boost cutoff `120` | `curves.boost.zeroBelowRpm` |
+| `kinematics.js:324-333` | boost point pairs | `curves.boost.points` |
+| `kinematics.js:344` | boost return `21.6` | `curves.boost.points` last value |
+| `kinematics.js:348` | vane cutoff `30` | `curves.vane.zeroBelowRpm` |
+| `kinematics.js:350-356` | vane point pairs | `curves.vane.points` |
+| `kinematics.js:358` | first vane point `82` | `curves.vane.points[0]` |
+| `kinematics.js:367` | last vane value `20` | `curves.vane.points` last value |
+| `kinematics.js:371` | EGT below `30` / value `38` | `curves.egt.belowRpm` / `belowValue` |
+| `kinematics.js:372` | EGT `232`, `510`, `3250`, `0.72` | `curves.egt.base`, `span`, `atRpm`, `exponent` |
+| `kinematics.js:376` | oil cutoff `20` | `curves.oil.zeroBelowRpm` |
+| `kinematics.js:377` | oil `22`, `38`, `1800` | `curves.oil.base`, `span`, `atRpm` |
+| `kinematics.js:381` | coolant `88`, `3250`, `4` | `curves.coolant.base`, `atRpm`, `span` |
+| `main.js:387` | torque/hp gate `150` | `telemetry.gates.torqueHpMinRpm` |
+| `main.js:390` | boost cap `23` | `curves.boost.capPsi` |
+| `main.js:391` | vane gate `30` | `telemetry.gates.vaneMinRpm` |
+| `main.js:392` | EGT fallback `38` | `telemetry.notFiring.egtBase` |
+| `main.js:392` | EGT rate `0.02` | `telemetry.notFiring.egtPerRpm` |
+| `main.js:394` | coolant gate `50` | `telemetry.gates.coolantMinRpm` |
+| `main.js:394` | coolant fallback `38` | `telemetry.notFiring.coolant` |
+
+The removed firing branches for rail, boost, EGT and oil now use `railRequiresFiring`, `boostRequiresFiring`, `egtRequiresFiring` and `oilRequiresFiring`. These flags were not read before; this package makes them take effect for the first time. With all four true, the results are exactly today's values. A false rail/boost/oil flag shows the value without firing; a false EGT flag uses the firing curve when not firing.
+
+### Call sites changed
+
+- `src/main.js`: `vaneAtRpm(lly, …)` at the engine frame and QA fixture; `telemetryValues(lly, …)` in `updateSimulation`; `torqueAtRpm(lly, …)` and `horsepowerAtRpm(lly, …)` in the curve cache and chart. `environment.update` and `audio.update` keep their order; `s._telemetry` is the returned object.
+- `tests/kinematics.test.mjs`: the three calibration calls pass `lly`; expected values and assertions are unchanged.
+- `scripts/capture-numeric.mjs`: all eight curve calls pass `lly`; the capture was not run because it writes `tests/baseline/`.
+- `src/kinematics.js`: the eight functions and their tables are deleted; the remaining exports are unchanged.
+
+`simulation.calibration` is initialized to `'allison'` and `setCalibration` only accepts known keys. `setFixture` does not clear it. No path leaves it undefined; no stop was needed.
+
+### New tests
+
+`tests/telemetry.test.mjs` adds 16 tests:
+
+- gate boundaries at 150/151, 30/31 and 50;
+- torque/hp at peak power when not firing;
+- rail/boost/oil zero and EGT not-firing formula;
+- vane without firing;
+- coolant fallback;
+- boost cap;
+- false rail flag;
+- return key order;
+- entry-driven EGT, oil, coolant, torque point, rail scale and gate copies;
+- representative curve outputs.
+
+Total: **158 tests, 31 suites, 158 passed, 0 failed** (299.6773 ms).
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (246 matches in 181 lines)
+Numbers: FAIL (38 matches in 32 lines)
+Provenance: PASS (206 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (247 matches in 180 lines)
+Numbers: FAIL (23 matches in 18 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (206 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The 15-number fall is the removed `kinematics.js` telemetry block. The one-name net rise is 8 names gone from `kinematics.js` (the LLY/Allison/ZF hook and curve comments/parameters) and 9 `lly` arguments added in `main.js`. Both counts match the package expectation.
+
+### Other acceptance
+
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views PASS. Home had 0 changed (>8), 1 pixel differing at all with channel delta 1; the other five views had 0/0.
+- `npm run build`: passed, **39 modules**, 556 ms; CSS 34.94 kB, JS 1,298.73 kB.
+- `src/core/telemetry.js` Names/Number patterns: 0/0.
+- `src/core/` imports from `src/engines`: none.
+- `tests/baseline/*.json` hashes and the entry hash are unchanged from before the edit:
+  - curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`
+  - trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`
+  - geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`
+  - entry `6296E2AEB0A91CFF61A8D1835485C810AC7FB2A2DE572B3529E61652BBE6E538`
+
+### Git status
+
+The 2.1 changes are `M src/kinematics.js`, `M src/main.js`, `M scripts/capture-numeric.mjs`, `M tests/kinematics.test.mjs`, `?? src/core/` and `?? tests/telemetry.test.mjs`, plus this log entry. No other file changed.
+
+Open:
+- Package 2.2 has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-02 · 2.2 Start-up moved to core
+
+Files: `src/core/simulation.js` (new); `src/main.js`, `src/utils.js`, `src/engines/lly/index.js`, `tests/telemetry.test.mjs` (changed); `tests/simulation.test.mjs` (new); `docs/build-log.md` (changed). No baseline, PNG, archive, other doc or test assertion changed.
+
+### 2.1 test tidy
+
+- Removed the `zero` and `one` constants; all uses are now literal `0` and `1`.
+- The rail-scale test is exact: with `scaleTo` halved, the result must equal the base value times `lly.curves.rail.scaleTo / modified.curves.rail.scaleTo`.
+- Test count stays at 16.
+
+### Entry additions
+
+Four values were added to `startSequence`; the existing `'startSequence': 'design'` provenance record covers them:
+
+| Key | Value | Design source |
+| --- | ---: | --- |
+| `firingAboveRpm` | 90 | Same number as the old `s.rpm > 90` test |
+| `overspeedDamping` | 6 | Same number as the old overspeed damp |
+| `overspeedHeadroomRpm` | 12 | Same number as the old `MAX_RPM + 12` |
+| `glow.stopped.cutoff` | 0.001 | Same number as the old spin-down glow test |
+
+Only the four additions changed in the entry.
+
+### Core simulation
+
+`src/core/simulation.js` imports `{ clamp, damp }` from `../utils.js` and `{ mod }` from `../kinematics.js`. It exports `startRun`, `stopRun` and `stepRun`, with no comments and no engine-specific names.
+
+- `startRun` sets the clamped setpoint, the last target, and the start state in the same order as `startEngine`; it returns `false` for a running engine and `true` for a new start.
+- `stopRun` clears engineOn, starting, fuel, desiredRpm and lastRpmTarget.
+- `stepRun` keeps the start-up structure, comparison operators, damping order and crank-angle arithmetic, reading every number from `engine.startSequence` and `engine.ratings`.
+
+`src/utils.js` gained `clamp` directly after `damp`, using `THREE.MathUtils.clamp`. `main.js` keeps its own `const clamp`.
+
+### Literals removed from main.js
+
+| Removed literal | Entry path |
+| --- | --- |
+| `0.55` crank end | `startSequence.crankUntilS` |
+| `190`, `4.7` | `startSequence.crankRpm`, `crankDamping` |
+| `1`, `6` cranking glow | `startSequence.glow.crank.target`, `.damping` |
+| `1.25` light-off end | `startSequence.lightOffUntilS` |
+| `520`, `3.1` | `startSequence.lightOffRpm`, `lightOffDamping` |
+| `0.55`, `4` light-off glow | `startSequence.glow.lightOff.target`, `.damping` |
+| `2.05` idle end | `startSequence.idleUntilS` |
+| `LLY.idleRpm`, `2.2` | `ratings.idleRpm`, `startSequence.idleDamping` |
+| `0.12`, `2.4` idle glow | `startSequence.glow.idle.target`, `.damping` |
+| `2.25` ramp end | `startSequence.rampEndS` |
+| `1600`, `1.08`, `1.35` | `startSequence.rampDamping.aboveRpm`, `.fast`, `.slow` |
+| `0`, `2.8` ramp glow | `startSequence.glow.ramp.target`, `.damping` |
+| `0`, `3` running glow | `startSequence.glow.running.target`, `.damping` |
+| `2200`, `0.98`, `1.42` | `startSequence.runDamping.aboveRpm`, `.fast`, `.slow` |
+| `1.05` spin-down damping | `startSequence.stopDamping` |
+| `3.5` spin-down snap | `startSequence.stopSnapRpm` |
+| `0.001`, `1.5` spin-down glow | `startSequence.glow.stopped.cutoff` (new), `.damping` |
+| `0.85` glow on start | `startSequence.glow.onStart` |
+| `MAX_RPM + 12` overspeed clamp | `ratings.redlineRpm` + `startSequence.overspeedHeadroomRpm` (new) |
+| `6` overspeed damping | `startSequence.overspeedDamping` (new) |
+| `680` idle fallback | `ratings.idleRpm` |
+| `90` firing test | `startSequence.firingAboveRpm` (new) |
+| `MAX_RPM` in clamp/damp | `ratings.redlineRpm` |
+
+### Call sites changed
+
+- `src/main.js`: `startEngine` calls `startRun`; `stopEngine` calls `stopRun`; `toggleEngine` uses `lly.ratings.idleRpm`; the initial desired and last targets use the entry idle; `updateSimulation` calls `stepRun`; firing uses `firingAboveRpm`.
+- `src/engines/lly/index.js`: four `startSequence` additions only.
+- `src/utils.js`: `clamp` addition only.
+- `tests/telemetry.test.mjs`: 2.1 tidy only.
+- `tests/simulation.test.mjs`: 13 new tests.
+
+### New tests
+
+`tests/simulation.test.mjs` covers start/stop, fuel timing, ramp end, fast and slow ramp damping, fast and slow running damping, spin-down snap and overspeed. Expected values come from the entry or from `damp`.
+
+**171 tests, 33 suites, 171 passed, 0 failed** (362.4779 ms).
+
+### Acceptance
+
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8), 0 differ at all.
+- `npm run build`: passed, **40 modules**, 568 ms; CSS 34.94 kB, JS 1,299.68 kB.
+- `npm run check`: Names 249 matches in 183 lines; Numbers 23 matches in 18 lines; Encoding PASS; IDs PASS; Provenance PASS (`lly`: 210 values, 62 records, 0 without record). Overall FAIL 2/5 on Names and Numbers; exit 1.
+- `src/core/simulation.js` and `src/core/telemetry.js`: Names 0, Numbers 0 each.
+- No direct imports from `src/engines/` in `src/core/`.
+
+The Names movement is the expected 6 new `lly` references in `main.js` minus the 4 removed `LLY.idleRpm` references on 3 lines, relative to 2.1's 247. Numbers stay at 23.
+
+### Start-up literal grep
+
+`grep -n` hits in `src/main.js`:
+
+```text
+38: 2.25   intro position
+138: 1.05  camera minimum distance
+249: 2.4   camera last-safe position
+257: 3.1   camera duration
+372: 1.05  camera reset duration
+436: 1.05  camera wall distance
+437: 1.05  camera wall ratio
+593: 3.1   outline edge strength
+872: 2.2   chart line width
+904: 190   rgba green channel
+1171: 2.2 / 3.5 / 1.5  camera tween position/duration
+1219: 680   preset name map
+1338: 1.35  walk pitch clamp
+1395: 680   preset value list
+1576: 680   setFixture default
+```
+
+None is inside the moved start-up block.
+
+### Hashes
+
+| File | Before | After |
+| --- | --- | --- |
+| `tests/baseline/lly-curves.json` | `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938` | same |
+| `tests/baseline/lly-trace.json` | `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C` | same |
+| `tests/baseline/lly-geometry.json` | `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51` | same |
+| `src/engines/lly/index.js` | `6296E2AEB0A91CFF61A8D1835485C810AC7FB2A2DE572B3529E61652BBE6E538` | `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68` |
+
+`git diff -U0 -- src/engines/lly/index.js` shows only the three top-level additions and the `glow.stopped` cutoff addition.
+
+### Git status
+
+`git status --short --untracked-files=all` shows the 2.2 set:
+
+```text
+ M docs/build-log.md
+ M scripts/capture-numeric.mjs
+ M src/engines/lly/index.js
+ M src/kinematics.js
+ M src/main.js
+ M src/utils.js
+ M tests/kinematics.test.mjs
+?? src/core/simulation.js
+?? src/core/telemetry.js
+?? tests/simulation.test.mjs
+?? tests/telemetry.test.mjs
+```
+
+`tests/telemetry.test.mjs` is `??`, not `M`, because it was already untracked after 2.1; the 2.2 tidy changed an untracked file, so Git cannot show it as modified. This is the only difference from the expected status. No other file changed. The tracked diff stat is in the package report.
+
+Open:
+- Package 2.3 has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-03 · 2.3a Engine file moved
+
+Files: `src/engine.js` renamed to `src/engines/families/v8-ohv.js`; `src/main.js`, `tests/kinematics.test.mjs`, `tests/picking.test.mjs` and `scripts/capture-browser.mjs` import paths changed; `docs/build-log.md` changed. No value, logic, test assertion, baseline or PNG changed.
+
+### Rename
+
+- Created `src/engines/families/`.
+- Ran `git mv src/engine.js src/engines/families/v8-ohv.js`.
+- The rename is the only staged change: `git diff --cached --name-status` is `R100 src/engine.js src/engines/families/v8-ohv.js`; cached stat is 0 insertions, 0 deletions.
+- The file has 4,341 lines before and after. The working-tree diff against HEAD is `6 +-` from the three import-line replacements.
+
+### Three import edits in the moved file
+
+- `'./utils.js'` → `'../../utils.js'`
+- `'./engines/lly/index.js'` → `'../lly/index.js'`
+- `'./kinematics.js'` → `'../../kinematics.js'`
+
+A line-by-line comparison against `HEAD:src/engine.js` found only lines 22, 23 and 37 different, with the same line count. No other content changed.
+
+### Four importer edits
+
+- `src/main.js`: `'./engine.js'` → `'./engines/families/v8-ohv.js'`
+- `tests/kinematics.test.mjs`: `'../src/engine.js'` → `'../src/engines/families/v8-ohv.js'`
+- `tests/picking.test.mjs`: `'../src/engine.js'` → `'../src/engines/families/v8-ohv.js'`
+- `scripts/capture-browser.mjs`: `'/src/engine.js'` → `'/src/engines/families/v8-ohv.js'`
+
+### Reference scan
+
+`grep` is not installed in this PowerShell environment; the equivalent `git grep` was used. `git grep --untracked -n 'engine\.js' -- src tests scripts` found no matches. The import scan shows the new family path and the existing `lly` imports; there is no stale `engine.js` reference in source, tests or scripts.
+
+Stale documentation references still naming `src/engine.js` (not edited):
+
+- `docs/agent-runbook.md`
+- `docs/build-log.md`
+- `docs/engine-library-plan.md`
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (249 matches in 183 lines)
+Numbers: FAIL (23 matches in 18 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (188 matches in 133 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The drop is scope: `src/engine.js` had 61 Names matches in 50 lines and one Numbers match, and the file is now under `src/engines/`, which `check.mjs` skips. No source match was fixed; the counts changed only because the file moved.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (350.4929 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views PASS. Home had 0 changed (>8), 1 sub-threshold pixel with delta 1; the other five views 0/0.
+- `npm run build`: passed, 40 modules, 534 ms; CSS 34.94 kB, JS 1,299.68 kB.
+- `npm run check`: counts and exit 1 above.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash unchanged: `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68`.
+
+### Staging
+
+Only the rename is staged. The three import edits in `v8-ohv.js`, the four importer edits and the log remain unstaged. There is no commit, tag or push.
+
+`git status --short --untracked-files=all` shows:
+
+```text
+ M docs/build-log.md
+ M scripts/capture-browser.mjs
+ M scripts/capture-numeric.mjs
+RM src/engine.js -> src/engines/families/v8-ohv.js
+ M src/engines/lly/index.js
+ M src/kinematics.js
+ M src/main.js
+ M src/utils.js
+ M tests/kinematics.test.mjs
+ M tests/picking.test.mjs
+?? src/core/simulation.js
+?? src/core/telemetry.js
+?? tests/simulation.test.mjs
+?? tests/telemetry.test.mjs
+```
+
+`tests/telemetry.test.mjs` remains `??`, as it was after 2.1. The 2.2 set is otherwise unchanged.
+
+Open:
+- Package 2.3b has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-03 · 2.3b V8 kinematics moved to family
+
+Files: `src/engines/families/v8-ohv-kinematics.js` (new); `src/kinematics.js`, `src/main.js`, `src/audio.js`, `src/specs.js`, `src/engines/families/v8-ohv.js`, `tests/kinematics.test.mjs`, `tests/audio-pulses.test.mjs`, `tests/helpers/fake-audio.mjs`, `scripts/capture-numeric.mjs` (changed); `docs/build-log.md` (changed). No baseline, PNG, archive, value, logic or test assertion changed.
+
+### Split
+
+`src/engines/families/v8-ohv-kinematics.js` starts with only:
+
+```js
+import lly from '../lly/index.js';
+import { DEG, cycleAngle, strokeAtCycle, wrapSignedDeg } from '../../kinematics.js';
+```
+
+Moved verbatim, in order, with every export name unchanged:
+
+- `LLY`, `CALIBRATIONS`, `STATION_Z`, `BANK_Z_OFFSET`, `STATION_THROW_OFFSET`, `CYLINDERS`, `CYLINDER_BY_NUMBER`, `FIRING_ORDER`, `CYLINDER_BY_STATION_BANK`
+- `pinWorldAngleDeg`, `pistonKinematics`, `crankPinWorld`
+- `VALVE_TIMING`, `valveLift`, `valveVelocity`
+- `cylinderState`
+- `activeFiringCylinder`
+
+`src/kinematics.js` keeps only:
+
+- `DEG`, `RAD`, `mod`, `wrapSignedDeg`
+- `cycleAngle`, `strokeAtCycle`, `STROKE_COLORS`
+- `camshaftAngleDeg`
+
+It now imports nothing and is 38 lines. The family module is 205 lines.
+
+### Importer changes
+
+- `src/main.js`: `CALIBRATIONS`, `CYLINDERS`, `FIRING_ORDER`, `LLY` and `cylinderState` from the family module; `mod`, `strokeAtCycle` stay on `./kinematics.js`. The package list named four of these; `CALIBRATIONS` also had to move because it is defined in the moved block.
+- `src/audio.js`: `CYLINDERS` from the family module; `mod` stays.
+- `src/specs.js`: `CYLINDER_BY_NUMBER` from the family module.
+- `src/engines/families/v8-ohv.js`: `BANK_Z_OFFSET`, `CYLINDERS`, `CYLINDER_BY_NUMBER`, `LLY`, `STATION_THROW_OFFSET`, `STATION_Z`, `VALVE_TIMING`, `cylinderState` from `./v8-ohv-kinematics.js`; `DEG`, `camshaftAngleDeg`, `mod`, `wrapSignedDeg` stay on `../../kinematics.js`.
+- `tests/kinematics.test.mjs`: the moved names come from `../src/engines/families/v8-ohv-kinematics.js`; `DEG`, `camshaftAngleDeg`, `mod` stay on `../src/kinematics.js`. The first two comment lines now name both files.
+- `tests/audio-pulses.test.mjs`: `CYLINDERS` from the family module.
+- `tests/helpers/fake-audio.mjs`: `FIRING_ORDER` from the family module; `mod` stays.
+- `scripts/capture-numeric.mjs`: every moved name from the family module; `camshaftAngleDeg` and `cycleAngle` stay on `../src/kinematics.js`. Not run, because it writes `tests/baseline/`.
+
+`git grep --untracked -n "kinematics" -- src tests scripts` shows every old-file import names only a kept export.
+
+### Block verification
+
+The pre-edit `src/kinematics.js` was copied outside the repo with Node before the split. A temporary Node script compared that copy to the new files:
+
+```text
+moved blocks exact: true
+moved block order: true
+kept blocks exact: true
+generic imports: false
+family lines: 206 generic lines: 39
+```
+
+The line counts include the final newline. The temporary copy and verifier were deleted.
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (188 matches in 133 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The drop is scope, not a fix: `src/kinematics.js` had 78 Names matches in 62 lines, and the moved code now sits under `src/engines/`, which `check.mjs` skips. Numbers are unchanged.
+
+`git grep -n -E "\blly\b|LLY|CYLINDERS|STATION_|VALVE_TIMING|FIRING_ORDER|CALIBRATIONS" -- src/kinematics.js` returned nothing.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (298.0614 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8), 0 differ at all.
+- `npm run build`: passed, 41 modules, 567 ms; CSS 34.94 kB, JS 1,299.68 kB.
+- `npm run check`: counts and exit 1 above.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash unchanged: `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68`.
+
+This was a move, not an argument change. Every block and signature was copied verbatim, and no function gained an entry argument. The split exists to put V8-specific layout and piston maths under the family; argument and data-flow changes belong to a later package, so the trace baseline can prove this step changed no value.
+
+### Status
+
+The new family module is untracked. The 2.3a rename remains the only staged change (`R100`). No commit, tag or push was made.
+
+Open:
+- Package 2.3c has not been started.
+- No commit, tag or push was made.
+
+## 2026-11-03 · 2.3c Identity, explode, crank reference, calibrations and part IDs
+
+Files: `src/engines/families/v8-ohv.js`, `src/engines/families/v8-ohv-kinematics.js`, `tests/kinematics.test.mjs` and `docs/build-log.md`. No baseline, PNG, archive, entry, `src/main.js`, `index.html`, `src/styles.css`, `src/core/` or capture/test file was changed.
+
+### Literal map
+
+| File:line (2.3b) | Old value | Entry path |
+| --- | --- | --- |
+| `v8-ohv.js:66` | `'Duramax LLY 6600'` | `identity.sceneName` |
+| `v8-ohv.js:579` | `[0, -105, 0]` | `explode.offsets.rotating` |
+| `v8-ohv.js:1014` | `[0, -225, 0]` | `explode.offsets['main-caps']` |
+| `v8-ohv.js:1137` | `[0, 95, 0]` | `explode.offsets.camshaft` |
+| `v8-ohv.js:1225` | `[-195, 195, 0]` / `[195, 195, 0]` | `explode.offsets[\`head-${bank}\`]` |
+| `v8-ohv.js:1247` | `[-335, 335, 0]` / `[335, 335, 0]` | `explode.offsets[\`cover-${bank}\`]` |
+| `v8-ohv.js:2149` | `[0, -355, 0]` | `explode.offsets['oil-pan']` |
+| `v8-ohv.js:2225` | `[230, -70, 0]` | `explode.offsets['oil-filter']` |
+| `v8-ohv.js:2344` | `[0, 15, 290]` | `explode.offsets['front-drive']` |
+| `v8-ohv.js:2654` | `[-290, 95, 0]` / `[290, 95, 0]` | `explode.offsets[\`exhaust-${bank}\`]` |
+| `v8-ohv.js:2782` | `[0, 310, -250]` | `explode.offsets.turbo` |
+| `v8-ohv.js:3167` | `[0, 340, 40]` | `explode.offsets.intake` |
+| `v8-ohv.js:3347` | `[-230, 260, -90]` | `explode.offsets.egr` |
+| `v8-ohv.js:3480` | `[0, 220, 110]` | `explode.offsets.fuel` |
+| `v8-ohv.js:630` | `135` | `layout.banks` bank R `axisDeg` via `CRANK_REFERENCE_DEG` |
+| `v8-ohv-kinematics.js:99` | `135` | `layout.banks` bank R `axisDeg` via `CRANK_REFERENCE_DEG` |
+| `tests/kinematics.test.mjs:143` | `LLY.peakTorqueRpm` | `ratings.calibrations[key].peakTorqueRpm` |
+| `tests/kinematics.test.mjs:144` | `LLY.peakHpRpm` | `ratings.calibrations[key].peakPowerRpm` |
+
+`CRANK_REFERENCE_DEG` is added at `v8-ohv-kinematics.js:54`; the two 135 expressions use it. The other 135 literals in `v8-ohv.js` stay as dimensions.
+
+The calibration fields are not added to `CALIBRATIONS`; the test reads the entry. The test lines changed only their input values. Expected values, tolerances and messages are unchanged, and line 145 still uses `LLY.redlineRpm`.
+
+### PART_IDS
+
+`export const PART_IDS` is added at `v8-ohv.js:4324`. It has 33 static IDs plus 16 generated IDs from `CYLINDERS.flatMap((c) => [\`piston-${c.number}\`, \`rod-${c.number}\`])`:
+
+`block`, `crank`, `flywheel`, `main-caps`, `camshaft`, `timing-gears`, `cylinder-head-right`, `cylinder-head-left`, `valves`, `lifters`, `pushrods`, `rockers`, `valve-bridges`, `valve-covers`, `injectors`, `glow-plugs`, `oil-pan`, `oil-filter`, `front-drive`, `exhaust-manifold-right`, `exhaust-manifold-left`, `turbo`, `up-pipes`, `intake-manifold`, `charge-pipes`, `egr`, `cp3`, `fuel-rails`, `high-pressure-lines`, `starter-motor`, `wiring-harness`, `exhaust-downpipe`, `engine-mounts`, plus `piston-1`…`piston-8` and `rod-1`…`rod-8`.
+
+**Total: 49.**
+
+### Browser part check from the previous run
+
+The one-off Vite/Chrome QA check returned:
+
+```text
+parts length 49
+PART_IDS length 49
+equal true
+only parts []
+only PART_IDS []
+```
+
+The temp script was deleted.
+
+### Left as dimensions
+
+These code literals equal a layout or valve-timing value but are geometry, placement, angle or unit-conversion literals. They were not changed.
+
+| Value | Lines | Why it stays |
+| ---: | --- | --- |
+| 196 | `v8-ohv.js:2231`, `3249` | Oil-filter Y and intake box width; dimensions |
+| 66 | `v8-ohv.js:657`, `1043`, `1044`, `1977` (twice), `1995`, `2310`, `2361`, `2386`, `2838`, `2858`, `3001`, `3425`, `3500`, `3631`, `3830`, `3977` | Cap/cover/plate positions and widths; dimensions |
+| 30 | `v8-ohv.js:486`, `535`, `561`, `638`, `659`, `675`, `788`, `854`, `874`, `924`, `1157`, `1158`, `2012`, `2167`, `2217`, `2449`, `2874`, `2986`, `3028`, `3220`, `3227`, `3292`, `3308`, `3313`, `3392` (twice), `3498`, `3505`, `3850`, `3874`, `3976`, `4069`; `v8-ohv-kinematics.js:166` (twice) | Radii, thicknesses, paddings, positions and the post-TDC cycle divisor |
+| 45 | `v8-ohv.js:535`, `879`, `1225` (twice), `1485`, `2278` (twice), `2405`, `2654` (twice), `2926`, `3844` | Bank/head rotations, radii and positions |
+| 135 | `v8-ohv.js:3288`, `3936` | Bank-side X positions; explicitly left as dimensions |
+| 270 | `v8-ohv.js:480`, `1464` (twice), `3452`, `3934` | Hardware positions and angles |
+| 230 | `v8-ohv.js:2049`, `2166`, `2184`, `3704`, `3846`, `3873` | Box widths, paddings and positions |
+| 224 | `v8-ohv.js:2298`, `3617`, `3630` | Oil-filter X and line endpoints |
+| 90 | `v8-ohv.js:1270`, `2118`, `2359`, `2934`, `3104`, `3877`, `3890`, `3964`, `4057` | Positions, angles and sizes |
+| 180 | `v8-ohv.js:1105`, `3873` | Radian/degree conversion and a position |
+| 360 | `v8-ohv.js:1105` | Radian/degree conversion |
+| 540 | `v8-ohv.js:1952` | Cover-shell length |
+| 450, 10.9, 10.4, 630 | no code hits | No matching literals in the family files |
+
+### Checks
+
+Before:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+These files are outside the scan, so the counts did not move. `npm run check` exits 1 on the expected Names and Numbers failures.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (343.8956 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8). Home had one sub-threshold pixel with delta 1; the other five were 0/0.
+- `npm run build`: passed, 41 modules, 548 ms; CSS 34.94 kB, JS 1,299.94 kB.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash unchanged: `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68`.
+- `git grep --untracked -n -E "peakTorqueRpm|peakPowerRpm"` also matches `v8-ohv-kinematics.js:18` (the existing LLY `peakTorqueRpm`) and `:19` (the existing LLY `peakHpRpm`, whose value reads `lly.ratings.peakPowerRpm`). The calibration objects have no peak fields; the test lines 143 and 144 read the entry.
+
+### Stop and resolution
+
+The first 2.3c run added `peakTorqueRpm` and `peakPowerRpm` to both `CALIBRATIONS` entries. That changed `captureNumericBaseline()`, which serializes `CALIBRATIONS`, and `tests/baseline.test.mjs` failed with the two extra fields on each calibration. The baseline file was not edited.
+
+Resolution: keep the numeric baseline unchanged. `CALIBRATIONS` returned to the seven fields; `tests/kinematics.test.mjs` reads each calibration's own peak speeds from `lly.ratings.calibrations[key]`. The test count returned to 171, and the numeric baseline passed.
+
+Quick parts are left for 2.4; the family does not use them, and the `valvetrain` alias in `main.js` was not changed.
+
+No commit, tag or push was made, and 2.3d was not started.
+
+## 2026-11-03 · 2.3d Colours, decal specs and two layout values
+
+Files: `src/engines/families/v8-ohv.js` and `docs/build-log.md`. The entry, baselines, core, main, index and styles were not changed.
+
+### 11 colour replacements
+
+| Old value | Entry path |
+| --- | --- |
+| `0x2c312e` | `look.palette.block` |
+| `0x202422` | `look.palette.blockDark` |
+| `0xb2b8b3` | `look.palette.head` |
+| `0x1a1f1c` | `look.palette.cover` |
+| `0x5b5e59` | `look.palette.liner` |
+| `0xff9b45` | `look.effects.combustionGlow` |
+| `0xffb24f` | `look.effects.injectorGlow` |
+| `0x1b4d70` | `look.palette.oilFilterCap` |
+| `0x888f8a` | `look.palette.frontCover` |
+| `0x252b28` | `look.palette.turboScreen` |
+| `0x919792` | `look.palette.intake` |
+
+The surrounding material and `setHex` calls are unchanged.
+
+### 41 decal replacements
+
+The inline object at each line was deep-equal to the named entry spec before replacement, including font, colour and `small`.
+
+| Line | Entry path |
+| ---: | --- |
+| 547 | `look.decals.block[0]` |
+| 548 | `look.decals.block[1]` |
+| 558 | `look.decals.serialPlate[0]` |
+| 559 | `look.decals.serialPlate[1]` |
+| 742 | `look.decals.timingCover[0]` |
+| 1432 | `look.decals.head[0]` |
+| 1860 | `look.decals.injectors[0]` |
+| 1861 | `look.decals.injectors[1]` |
+| 2010 | `look.decals.valveCover[0]` |
+| 2011 | `look.decals.valveCover[1]` |
+| 2134 | `look.decals.coverCaution[0]` |
+| 2135 | `look.decals.coverCaution[1]` |
+| 2215 | `look.decals.oilPan[0]` |
+| 2216 | `look.decals.oilPan[1]` |
+| 2261 | `look.decals.oilFilter[0]` |
+| 2262 | `look.decals.oilFilter[1]` |
+| 2263 | `look.decals.oilFilter[2]` |
+| 2333 | `look.decals.oilFilterPlate[0]` |
+| 2334 | `look.decals.oilFilterPlate[1]` |
+| 2516 | `look.decals.alternator[0]` |
+| 2612 | `look.decals.exhaustManifold[0]` |
+| 2613 | `look.decals.exhaustManifold[1]` |
+| 2763 | `look.decals.exhaustShield[0]` |
+| 2764 | `look.decals.exhaustShield[1]` |
+| 2826 | `look.decals.turboPlaque[0]` |
+| 2827 | `look.decals.turboPlaque[1]` |
+| 3042 | `look.decals.turboIdPlate[0]` |
+| 3043 | `look.decals.turboIdPlate[1]` |
+| 3050 | `look.decals.turboBosch[0]` |
+| 3259 | `look.decals.intake[0]` |
+| 3260 | `look.decals.intake[1]` |
+| 3335 | `look.decals.chargePipe[0]` |
+| 3336 | `look.decals.chargePipe[1]` |
+| 3408 | `look.decals.egr[0]` |
+| 3465 | `look.decals.egrCooler[0]` |
+| 3466 | `look.decals.egrCooler[1]` |
+| 3553 | `look.decals.cp3[0]` |
+| 3554 | `look.decals.cp3[1]` |
+| 3573 | `look.decals.cp3Top[0]` |
+| 3703 | `look.decals.fuelRail[0]` |
+| 3704 | `look.decals.fuelRail[1]` |
+
+`git grep --untracked -n "text: '" -- src/engines/families/v8-ohv.js` returns nothing.
+
+### Two layout changes
+
+- Head and exhaust bank rotations:
+  - Old: `const rotation = (bank === 'R' ? 45 : -45) * DEG;` at the head and exhaust loops.
+  - New: `const bankRotation = lly.layout.banks.find((bankSpec) => bankSpec.id === bank).rotationDeg;` then `const rotation = bankRotation * DEG;`
+- Crank web:
+  - Old: `web.position.z = side * 66;`
+  - New: `web.position.z = STATION_Z[side > 0 ? 1 : 2];`
+
+The 2.3c audit listed `45` / `-45` and `66` as dimensions. That was wrong: they are the bank rotations and the station-1/2 offset. They now read from the entry / `STATION_Z`.
+
+The other layout-value-like literals remain dimensions for the same reasons recorded in 2.3c; the 450/10.9/10.4/630 values have no code hits.
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The family is outside the scan, so the counts are unchanged.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (346.3697 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8). Home had one sub-threshold pixel with delta 1 on both runs; cutaway had one such pixel on the first run and 0 on the rerun. No view changed above threshold.
+- `npm run build`: passed, 41 modules, 554 ms; CSS 34.94 kB, JS 1,298.15 kB.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash unchanged: `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68`.
+
+### Static check discrepancy
+
+`git grep --untracked -n -E "0x[0-9a-fA-F]{6}" -- src/engines/families/` returns nothing. The combined check including `setHex\(` returns seven hits because `setHex` is the surrounding Color API, not a colour literal:
+
+```text
+v8-ohv.js:100,103,106,109,116,2349,3173: color.setHex(lly.look.palette...)
+```
+
+The literal-only replacement cannot also remove `setHex` without changing the API to `color.set(...)`. That method change was not made because the package says to keep the surrounding code unchanged. This is the only acceptance discrepancy.
+
+### Left for 2.3e
+
+- `headLabel` at `v8-ohv.js:1260` / `:1433`.
+- `bankText` at `:2044` / `:2047`.
+- Passenger/driver text at `:2048`.
+- Dynamic `MAIN` numbering at `:1060`.
+- `idText` valve index at `:1175` / `:1177`.
+- I/E rocker text at `:1608`.
+
+Quick parts are left for 2.4. No entry value changed. No commit, tag or push was made, and 2.3e was not started.
+
+## 2026-11-04 · 2.3e Bank labels and label styles from the entry
+
+Files: `src/engines/lly/index.js`, `src/engines/families/v8-ohv.js` and `docs/build-log.md`. The values were copied from the family code, not the package list. A Node comparison confirmed every entry string, font, colour and `small` flag matched the code before replacement.
+
+### Entry additions
+
+`look.bankLabels`:
+
+| Key | Code value copied |
+| --- | --- |
+| `head.R` | `text: 'RIGHT BANK · 1-3-5-7'`, `font: '600 34px Bahnschrift, Arial'`, `color: '#52534e'`, `small: true` |
+| `head.L` | `text: 'LEFT BANK · 2-4-6-8'`, same style |
+| `bank.R` | `text: 'BANK R  ·  1-3-5-7'`, `font: '700 75px Bahnschrift, Arial'`, `color: '#1c211e'` |
+| `bank.L` | `text: 'BANK L  ·  2-4-6-8'`, same style |
+| `side.R` | `text: 'PASSENGER BANK'`, `font: '500 28px Bahnschrift, Arial'`, `color: '#82521a'`, `small: true` |
+| `side.L` | `text: 'DRIVER BANK'`, same style |
+
+`look.labelStyles`:
+
+| Key | Code value copied |
+| --- | --- |
+| `capNumeral` | `font: '700 98px Bahnschrift, Arial'`, `color: '#b5aa8a'` |
+| `valveIndex` | `font: '700 88px Bahnschrift, Arial'`, `color: '#d9d3bb'` |
+| `rockerMark` | `font: '800 96px Bahnschrift, Arial'`, `color: '#2e312e'` |
+
+The two objects sit after `look.decals` and before the look block closes.
+
+### Code sites changed
+
+- Deleted `const headLabel = bank === 'R' ? 'RIGHT BANK · 1-3-5-7' : 'LEFT BANK · 2-4-6-8';`.
+- `v8-ohv.js:1432` (was 1433): `{ text: headLabel, font: '600 34px Bahnschrift, Arial', color: '#52534e', small: true }` → `lly.look.bankLabels.head[bank]`.
+- Deleted `const bankText = bank === 'R' ? 'BANK R  ·  1-3-5-7' : 'BANK L  ·  2-4-6-8';`.
+- `v8-ohv.js:2045` (was 2047): `{ text: bankText, font: '700 75px Bahnschrift, Arial', color: '#1c211e' }` → `lly.look.bankLabels.bank[bank]`.
+- `v8-ohv.js:2046` (was 2048): `{ text: bank === 'R' ? 'PASSENGER BANK' : 'DRIVER BANK', font: '500 28px Bahnschrift, Arial', color: '#82521a', small: true }` → `lly.look.bankLabels.side[bank]`.
+- `v8-ohv.js:1060`: `[{ text: \`MAIN 0${i + 1}\`, font: '700 98px Bahnschrift, Arial', color: '#b5aa8a' }]` → `[{ ...lly.look.labelStyles.capNumeral, text: \`MAIN 0${i + 1}\` }]`.
+- `v8-ohv.js:1177`: `[{ text: idText, font: '700 88px Bahnschrift, Arial', color: '#d9d3bb' }]` → `[{ ...lly.look.labelStyles.valveIndex, text: idText }]`.
+- `v8-ohv.js:1607` (was 1608): `[{ text: typeIsIntake ? 'I' : 'E', font: '800 96px Bahnschrift, Arial', color: '#2e312e' }]` → `[{ ...lly.look.labelStyles.rockerMark, text: typeIsIntake ? 'I' : 'E' }]`.
+
+`bank` is in scope at both bank-label sites. `headLabel` and `bankText` had no other uses. `makeLabelTexture` only reads its entries.
+
+`git grep --untracked -n -E "headLabel|bankText|PASSENGER|DRIVER BANK" -- src/engines/families/v8-ohv.js` returns nothing.
+
+### Three formatting-only text sites
+
+`git grep --untracked -n -E "text: [^']" -- src/engines/families/v8-ohv.js` shows only:
+
+```text
+1060: [{ ...lly.look.labelStyles.capNumeral, text: `MAIN 0${i + 1}` }]
+1177: [{ ...lly.look.labelStyles.valveIndex, text: idText }]
+1607: [{ ...lly.look.labelStyles.rockerMark, text: typeIsIntake ? 'I' : 'E' }]
+```
+
+The numbering format, `idText` format and I/E choice stay in code.
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The new entry values are text and booleans, so the numeric provenance count did not move.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (348.9652 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; all six views 0 changed (>8). Home had one sub-threshold pixel at delta 1; the other five views were 0/0.
+- `npm run build`: passed, 41 modules, 386 ms; CSS 34.94 kB, JS 1,298.60 kB.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash: old `1E5A75E5FE60960305F79C96CC47909C47B5A0A95C479062317BE2CFDAB18A68`, new `5E4D8417CACF0E22AA06E40F5B2EE9AEEA749CD4E4EEC3675766429D61438E5B`.
+- `git diff --no-index` of the pre-edit entry copy against the current entry shows only `bankLabels` and `labelStyles`.
+
+`git diff HEAD -- src/engines/lly/index.js` also shows pre-existing Phase 2.2 keys (`firingAboveRpm`, `overspeedDamping`, `overspeedHeadroomRpm` and `stopped.cutoff`) that were already in the working tree before 2.3e. Those are not 2.3e changes and were left untouched.
+
+No commit, tag or push was made, and 2.3f was not started.
+
+## 2026-11-04 · 2.3f Turbo, vane and timing gears
+
+Files: `src/engines/families/v8-ohv.js`, `src/main.js` and `docs/build-log.md`. The frame contract now carries `timeScale`; the model derives turbo rate and vane from `rpm` and the entry. The frame's `firing` field remains but the model does not read it.
+
+### Parameter rename
+
+`update(dt, state)` became `update(dt, frame)`. Ten uses on nine lines changed from `state.*` to `frame.*`; `state` no longer appears in the family.
+
+`git grep --untracked -n -E "\bstate\b" -- src/engines/families/v8-ohv.js` returns nothing.
+
+### Turbo and vane
+
+Old:
+
+```js
+const rpm = frame.rpm || 0;
+const turboRate = frame.turboRate ?? (3 + (rpm / 3250) * 142);
+...
+const vane = frame.vane ?? 0;
+```
+
+New:
+
+```js
+const rpm = frame.rpm || 0;
+const turboBase = rpm > 20 ? 3.2 + (rpm / lly.ratings.redlineRpm) * 145 : 0;
+const turboRate = turboBase * frame.timeScale;
+...
+const vane = vaneAtRpm(lly, rpm);
+```
+
+`vaneAtRpm` is imported from `../../core/telemetry.js`. The turbo-wheel loop and the actuator `lerp(-0.35, 0.75, vane / 100)` are unchanged. `frame.timeScale` has no default.
+
+### main.js frame and QA hook
+
+`updateSimulation` no longer computes `turboBase`. Its frame is now:
+
+```js
+{
+  crankAngleDeg: s.crankAngle,
+  rpm: s.rpm,
+  firing,
+  fuel: s.fuel,
+  glow: s.glow,
+  timeScale,
+}
+```
+
+The old `vane` and `turboRate` fields are gone. `timeScale` was already computed for `stepRun`.
+
+The QA hook frame removes `vane` and passes:
+
+```js
+// QA hook: the turbo stays still
+timeScale: 0,
+```
+
+`turboRate` is `turboBase * frame.timeScale`, so `timeScale: 0` makes the rate zero and the turbo wheels stay still. The old `turboRate: 0` had the same effect.
+
+`vaneAtRpm` was removed from the `main.js` telemetry import. `git grep --untracked -n -E "turboRate|turboBase|vaneAtRpm" -- src/main.js` returns nothing.
+
+### Timing gears
+
+Crank gear, old:
+
+```js
+crankGear.userData.partId = 'timing-gears';
+if (!this.parts.has('timing-gears')) this.parts.set('timing-gears', []);
+this.parts.get('timing-gears').push(crankGear);
+spin.add(crankGear);
+```
+
+New:
+
+```js
+this.createPart(spin, 'timing-gears').add(crankGear);
+```
+
+Cam gear makes the same change with `camGear`. `createGear` and both `position.set(0, 0, 247)` calls stay.
+
+`createPart` creates a `part-timing-gears` group, sets `userData.partId`, adds it to `spin`, and pushes it into the `timing-gears` part array.
+
+### Part check
+
+The browser QA check returned:
+
+```text
+parts length 49
+PART_IDS length 49
+equal true
+only parts []
+only PART_IDS []
+timing-gears roots 2
+roots [{"name":"part-timing-gears","partId":"timing-gears"},{"name":"part-timing-gears","partId":"timing-gears"}]
+roots valid true
+```
+
+The one-off Vite/Chrome script was deleted.
+
+### Check counts
+
+Before:
+```text
+Names: FAIL (110 matches in 71 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Provenance: PASS (210 values, 62 records)
+```
+
+After:
+```text
+Names: FAIL (108 matches in 69 lines)
+Numbers: FAIL (22 matches in 17 lines)
+Encoding: PASS
+IDs: PASS
+Provenance: PASS (210 values, 62 records)
+Result: FAIL (2 of 5 checks failed: Names, Numbers)
+```
+
+The 110/71 expectation did not hold. Removing the two `vaneAtRpm(lly, …)` frame lines removed two `lly` name matches on two lines. The counts were not padded artificially.
+
+### Acceptance
+
+- `npm test`: 171 tests, 33 suites, 171 passed, 0 failed (342.5563 ms).
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; trace turbo angles and vane values match exactly at 1x and 0.12x. All six views 0 changed (>8); home had one sub-threshold pixel at delta 1.
+- `npm run build`: passed, 41 modules, 537 ms; CSS 34.94 kB, JS 1,298.35 kB.
+- Baseline hashes unchanged: curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`, trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`, geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+- Entry hash unchanged: `5E4D8417CACF0E22AA06E40F5B2EE9AEEA749CD4E4EEC3675766429D61438E5B`.
+
+The `firing` field stays in both frames but the model does not read it; that is left for a later cleanup.
+
+No commit, tag or push was made, and the next package was not started.
+
+## 2026-11-04 · 2.4a Generated controls and index.html placeholders
+
+### Files and line counts
+
+- `index.html` — 418 lines, 95 changed.
+- `src/main.js` — 1,619 lines, 131 changed.
+- `src/styles.css` — 2,622 lines, header comment only.
+- `src/engines/lly/index.js` — 606 lines, 94 added.
+- `src/ui/bind.js` — 114 lines, new.
+- `src/ui/format.js` — 4 lines, new.
+- `tests/ui-bind.test.mjs` — 56 lines, new.
+
+### Entry
+
+`inspect.aliases.valvetrain` now lists `camshaft`, `lifters`, `pushrods`, `rockers`, `valve-bridges` and `valves`. `inspect.quickParts` is unchanged.
+
+A top-level `ui` block sits before `provenance` and carries:
+
+- title, description and canvas label;
+- brand HTML and brand subtitle;
+- header category and title, spec strings, firing order, bank labels and cycle text;
+- walk engine label;
+- boost title and chart-axis strings;
+- calibration button labels, tip names and the pump name `CP3.3`;
+- quick-part labels;
+- inspector mini-spec values;
+- help eyebrow and footer;
+- spec-sheet title, values and footnote.
+
+The `ui` strings use `\u00a0` for `&nbsp;`, `\u00b7` for the middot and `\u2014` for the em dash. No `ratings.calibrations` field was added or changed. The brand title is stored as `DURAMAX<span>6600</span>` so its nested span style is preserved.
+
+### Binding
+
+`src/ui/format.js` exports the old `formatInt` implementation. `main.js` and `bind.js` import it.
+
+`src/ui/bind.js` header documents:
+
+- `data-bind="path"` for text;
+- `data-bind-html="path"` for the brand markup;
+- `data-bind-attr="attribute:path; ..."` for attributes.
+
+Pure helpers:
+
+- `presetRows(entry)` returns `{ rpm, label, toast }` from `ratings.presets`.
+- `presetByRpm(entry, rpm)` returns the row or `undefined`.
+- `calibrationRows(entry)` returns `{ id, button, tooltip, railNote }`.
+- `visibleQuickParts(entry, partIds)` expands aliases and returns `{ id, label }`.
+
+`bindEntry` fills the bindings, sets the title and description, rebuilds the preset and calibration buttons, rebuilds quick parts, sets the default rail note, and sets the slider maximum from `ratings.redlineRpm`. It runs once before `bindControls()` and `syncUI()`.
+
+### Index and main
+
+`index.html` keeps its ids, classes and structure, but engine-specific text is empty or neutral and bound. The preset and calibration parents keep hidden placeholders for `bindEntry` to replace. `#calRailNote` is empty, `#hoverName` is empty, and the rpm slider starts at `max="0"` before binding.
+
+`main.js` changes:
+
+- imports `bindEntry`, `presetByRpm`, `presetRows` and `formatInt`;
+- imports `PART_IDS` from the family module;
+- removes `VALVETRAIN_IDS` and uses `lly.inspect.aliases?.[id]`;
+- removes the `applyPreset` names map and uses the entry toast;
+- builds the digit-key list from `presetRows(lly)`;
+- calls `bindEntry` once before `bindControls()`.
+
+`src/styles.css` line 2 is now `Engine test cell interface`; no other style changed.
+
+### Tests
+
+New `tests/ui-bind.test.mjs` has five tests:
+
+1. preset rows and rpms;
+2. calibration labels, tooltips and load rail note;
+3. all four quick parts for the real LLY part list;
+4. CP3.3 hidden when `cp3` is absent;
+5. valvetrain shown when any alias member is present.
+
+`npm test`: **176 tests, 34 suites, 176 passed, 0 failed** (360.0473 ms). This is 171 existing plus 5 new.
+
+### Commands
+
+- `npm test`: 176/176 pass.
+- `npm run check`: Names **72 matches in 53 lines**, Numbers **8 matches in 7 lines**, Encoding PASS, IDs PASS, Provenance PASS (210 values, 62 records).
+- `npm run build`: **43 modules**, 242 ms; JS 1,302.92 kB, CSS 34.94 kB.
+- `npm run baseline:compare`: Trace PASS, Geometry PASS; home: 0 changed (>8), 1 differs at all, largest channel delta 1 (sub-threshold, on record); the other five views: 0 differ at all.
+
+### Check-count deviation
+
+The expected Names count was 68/49; the actual is **72/53**. The four extra lines are the required new `lly` references:
+
+```text
+src/main.js:511  const aliasIds = lly.inspect.aliases?.[id];
+src/main.js:1211 showToast(`${(presetByRpm(lly, rpm) || {}).toast || 'SPEED PRESET'}...
+src/main.js:1386 const values = presetRows(lly).map((row) => row.rpm);
+src/main.js:1451 bindEntry(lly, { document, partIds: PART_IDS, ...
+```
+
+The expected Numbers lines were 731, 756, 797, 967, 1002, 1511 and environment 1365. Actual:
+
+```text
+src/main.js:731, 756, 797
+src/main.js:963, 998, 1507
+src/environment.js:1365
+```
+
+The first three match. The last three are four lines earlier because `formatInt` moved out of `main.js` into `src/ui/format.js`. No code was padded to hit the expected numbers.
+
+`index.html` and `src/styles.css` have no name or number matches.
+
+### Snapshot
+
+Before and after snapshots contain the same title, description, canvas label, body text, five presets, two calibration buttons, four quick parts, rail note and hover tag.
+
+The only difference:
+
+```text
+$.hoverName[0].textContent: "BOSCH CP3.3" -> ""
+```
+
+That is the required removal; `main.js` sets the hover name on hover.
+
+### Hashes
+
+- Entry: `51F76C66071AF1C2559E595BA94D3CB5DA9CB2C2AFAB7B36B9D3A83DB8CADAFD` (old `5E4D8417CACF0E22AA06E40F5B2EE9AEEA749CD4E4EEC3675766429D61438E5B`).
+- `src/ui/bind.js`: `645A5B432E7B5B8FC946D42765E282C67FB95D6163FE743CF5A2328FD1721201`.
+- `src/ui/format.js`: `3EBEAD342BEFB325D53BC40E29445770F323C61CCF51AD582C60745FD6818AB0`.
+- Baselines unchanged:
+  - curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`;
+  - trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`;
+  - geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+
+### Not done
+
+No 2.4b work started. The check-count and shifted-number-line discrepancies are reported above rather than fixed by padding. No commit, tag, push, add, reset, checkout or stash was run.
+
+## 2026-11-04 · 2.4b Main copy and display values
+
+### Files and line counts
+
+- `src/engines/lly/index.js` — 641 lines.
+- `src/main.js` — 1,620 lines.
+- `src/ui/bind.js` — 118 lines.
+- `tests/ui-bind.test.mjs` — 94 lines.
+- `docs/build-log.md` — 2.4a baseline note corrected and this section added.
+
+`index.html` and `src/styles.css` were not changed in 2.4b.
+
+### Entry
+
+- `ratings.defaultCalibration: 'allison'`.
+- `ui.display`: `tachRedBandRpm: 3000`, `governedLabelRpm: 3200`, `adaptiveToastMs: 3200`.
+- `ui.toasts.audioOnline`.
+- `ui.capture`: caption, place and fileStem, including the double spaces.
+- `look.outline`: base, hover and selected colours/strengths/glow/thickness.
+- Provenance: `'ui.display': 'design'` and `'look.outline': 'design'`.
+
+No existing entry value was changed.
+
+### Binding and main
+
+`src/ui/bind.js` exports `railFullScalePsi(entry)`, the largest calibration `maxRailPsi`.
+
+`src/main.js` now reads:
+
+- outline base, hover and selected values from `look.outline`;
+- `ratings.defaultCalibration` for the simulation state and both dyno fallbacks;
+- `ui.display.tachRedBandRpm` for the tach red band, tick class and marker;
+- `RAIL_FULL_SCALE_PSI = railFullScalePsi(lly)` for the rail gauge;
+- `ui.display.governedLabelRpm` for the GOVERNED label;
+- `ui.display.adaptiveToastMs` for the adaptive-quality toast;
+- `ui.toasts.audioOnline` for the audio-online toast;
+- `ui.calibration.pump` for the rail note;
+- `ui.capture.caption`, `place` and `fileStem` for capture;
+- `Object.hasOwn(lly.inspect.aliases, id)` before reading an alias list.
+
+The dyno `curveCache` now has one array per calibration key and loops RPM from 0 to `MAX_RPM` in steps of 25. The fallback uses the entry default. The rendered output and capture strings are unchanged.
+
+### Tests
+
+`tests/ui-bind.test.mjs` now has nine tests, adding:
+
+1. `ui.display` values;
+2. `railFullScalePsi(lly) === 26000`;
+3. the outline base/hover/selected values;
+4. a valid default calibration.
+
+`npm test`: **180 tests, 34 suites, 180 passed, 0 failed** (373.902 ms).
+
+### Commands
+
+- `npm test`: 180/180 pass, numeric baseline included.
+- `npm run check`:
+  - Names: **78 matches in 69 lines**; every `main.js` match is an import or a `lly`/`LLY` identifier. Main has 49 terms in 46 lines.
+  - Numbers: **2 matches in 1 line**, `src/environment.js:1365` (`3250, 3250`).
+  - Encoding PASS; IDs PASS; Provenance PASS (224 values, 64 records, 0 without record).
+- `npm run build`: **43 modules**, 258 ms; JS 1,304.05 kB, CSS 34.94 kB.
+- `npm run baseline:compare` on this machine printed "Browser metadata mismatch; skipping pixel comparison" (Chrome 157.0.8103.39 against the stored baseline's 156.0.8078.48), so the Trace, Geometry and pixel checks did not run. The "0 differ at all" lines previously written for 2.4b were not produced by that run and are removed.
+- DOM before/after snapshot: **0 differences**.
+
+- Scratch check outside the repo: phase-0-done captured on Chrome 157, then this tree compared with the same stock scripts: Trace PASS, Geometry PASS, home 0 changed (>8) with 1 differing pixel at channel delta 1 (limit 1024) PASS; the other five views 0 differ.
+- Missed in 2.4b: `src/main.js` boost bar `t.boost / 23` (around line 965) is the entry value `turbo.boostPeakPsi`. Fixed in 2.5.
+
+### 2.4a correction
+
+The 2.4a Commands line now reads: home 0 changed (>8), 1 differs at all, delta 1 (sub-threshold, on record); the other five views 0 differ. Nothing else in 2.4a changed.
+
+### Hashes
+
+- Entry: `202B182180E08B870284FBFB028AA15CA8174157E4C08F719218C51B07D62E85`.
+- `src/main.js`: `8A21DAF518608DB409CE87B8BE2DA84BE9F881C3FE5E27AB70C8BA052C39BBAB`.
+- `src/ui/bind.js`: `64D4E12D5B24AD80ECEEA02659AC1C479CC6BCA6A4657BE617AF88E93763F298`.
+- Baselines unchanged:
+  - curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`;
+  - trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`;
+  - geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+
+### Not done
+
+No 2.4c work started. No commit, tag, push, add, reset, checkout or stash was run.
+
+## 2026-11-05 · 2.5 Audio from the entry
+
+### Files and line counts
+
+- `src/engines/lly/index.js` — 643 lines.
+- `src/audio.js` — 517 lines.
+- `src/main.js` — 1,628 lines.
+- `tests/helpers/fake-audio.mjs` — 189 lines.
+- `tests/audio-config.test.mjs` — 31 lines, new.
+- `docs/build-log.md` — 2.4b correction and this section.
+
+`tests/audio-pulses.test.mjs` was not changed in 2.5; it uses the helper.
+
+### Entry
+
+The `audio` block now holds:
+
+```js
+baseToneHz: 45.3,
+maxFrameS: 0.2,
+firingAboveRpm: 80,
+pulsesPerRev: 4,
+bankCadence: true,
+turboWhistle: true,
+injectorKnock: true,
+```
+
+The existing `'audio': 'design'` provenance record covers both added numbers. Provenance is 226 values, 64 records, 0 without record.
+
+### Audio config and frame
+
+`TestCellAudio` takes one config object:
+
+```js
+{ maxRpm, baseToneHz, maxFrameS, boostPeakPsi, firingAboveRpm, pulsesPerRev, bankCadence, turboWhistle, injectorKnock }
+```
+
+`main.js` constructs it with `maxRpm: MAX_RPM`, `boostPeakPsi: lly.turbo.boostPeakPsi` and `...lly.audio`. `MAX_RPM` is still defined only in `main.js`.
+
+`audio.js` no longer imports the entry. The firing oscillator uses `config.baseToneHz`; the bank oscillator uses exactly `config.baseToneHz / 2`; the firing gate uses `config.firingAboveRpm`; firing frequency uses `config.pulsesPerRev`; the frame limit uses `config.maxFrameS`; RPM normalisation and load use `config.maxRpm`; boost normalisation uses `config.boostPeakPsi`.
+
+The three optional layers are gated:
+
+- `bankCadence` sets the bank gain to zero when false.
+- `turboWhistle` gates the whistle and boost-air targets.
+- `injectorKnock` skips the injector pilot/main click while keeping the combustion thump.
+
+All three are true for LLY, so the output is unchanged.
+
+`update(dt, frame, camera)` reads only `rpm`, `fuel`, `starting`, `slowMotion`, `cutaway`, `crankAngle` and `telemetry`. `telemetry` replaces `_telemetry`.
+
+The two removed fallbacks did not change output:
+
+- `rail || 7050`: `railNorm` clamps every rail below 8,150 psi to the 0.15 floor, and 7,050 is in that range.
+- `vane ?? 62`: `telemetryValues` always returns a vane.
+
+Supplier names in comments are now neutral: turbo whistle, starter motor, injector knock and starter whine.
+
+`main.js` passes the explicit frame:
+
+```js
+audio.update(dt, {
+  rpm, fuel, starting, slowMotion, cutaway, crankAngle, telemetry,
+}, camera);
+```
+
+`s._telemetry = telemetry` remains for the HUD. The boost bar now uses `lly.turbo.boostPeakPsi`.
+
+### Tests
+
+`tests/audio-config.test.mjs` has three cases:
+
+1. firing oscillator 45.3, bank oscillator 22.65;
+2. the entry audio keys and values;
+3. `src/audio.js` does not import from `engines/lly`.
+
+`npm test`: **183 tests, 35 suites, 183 passed, 0 failed** (953.5685 ms). Numeric baseline included.
+
+### Commands
+
+- `npm test`: 183/183 pass.
+- `npm run check`:
+  - Names: **69 matches in 63 lines**. Every `main.js` match is an import or a `lly`/`LLY` identifier; main has 52 terms in 48 lines.
+  - Numbers: **2 matches in 1 line**, `src/environment.js:1365` (`3250, 3250`).
+  - Encoding PASS; IDs PASS; Provenance PASS (226 values, 64 records, 0 without record).
+- `npm run build`: **43 modules**, 407 ms; JS 1,304.57 kB, CSS 34.94 kB.
+- `npm run baseline:compare`:
+
+```text
+Browser metadata mismatch; skipping pixel comparison.
+  Baseline: 156.0.8078.48 / ANGLE (Intel, Intel(R) Arc(TM) 140V GPU (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)
+  Current:  157.0.8103.39 / ANGLE (Intel, Intel(R) Arc(TM) 140V GPU (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)
+```
+
+Exit 1. Trace, Geometry and pixel checks did not run; this is not a pass. No baseline file was edited.
+
+- DOM before/after snapshot: **0 differences**.
+
+### 2.4b correction
+
+The 2.4b Commands line now records the browser metadata mismatch, the scratch comparison, and the missed boost-bar value. The DOM snapshot line is unchanged.
+
+### Hashes
+
+- Entry: `F5EFF7466F17602C1880E4D43BCE7A5F6E81FEBAC298C04860A976D40E878362`.
+- `src/audio.js`: `6CF022C38BA3247485F51E36C457E941CA57CD738E3BDEFA62BD536887E15288`.
+- `src/main.js`: `D01DA106E54C92B143F6DFD710B17F272CEE8D83D65F61F5022BD2A658323347`.
+- `tests/helpers/fake-audio.mjs`: `CE1F30E5FF5832FF82A359F83747D7C98FF1A68C1408FBD7B41716E0F0243B80`.
+- Baselines unchanged:
+  - curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`;
+  - trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`;
+  - geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+
+### Not done
+
+No 2.6 work started. No commit, tag, push, add, reset, checkout or stash was run.
+
+## 2026-11-05 · 2.6 Interim entry binding
+
+### Files and line counts
+
+- `src/engines/active.js` — 6 lines, new.
+- `src/collision.js` — 187 lines.
+- `src/specs.js` — 27 lines.
+- `src/main.js` — 1,627 lines.
+- `tests/audio-pulses.test.mjs` — 143 lines, comment only.
+- `docs/build-log.md` — this section.
+
+`src/environment.js`, `src/engines/families/*`, `src/engines/lly/*`, scripts and other tests were not changed.
+
+### Binding module
+
+`src/engines/active.js`:
+
+```js
+// The active engine for this build. Phase 3 replaces this file with the registry.
+import lly from './lly/index.js';
+
+export const entry = lly;
+export { COMPONENT_CARDS, pistonCard, rodCard, engineSummary } from './lly/copy.js';
+```
+
+The file is inside `src/engines/`, so the name scan skips it.
+
+### Renames
+
+- `src/collision.js`: entry import replaced; four `lly.walk.*` uses became `entry.walk.*`.
+- `src/specs.js`: entry and copy imports became one `active.js` import; one `lly.layout.firingOrder` became `entry.layout.firingOrder`; `CYLINDER_BY_NUMBER` still comes from the family module.
+- `src/main.js`: 48 `lly` and 4 `LLY` identifiers became `entry`. This includes the two `LLY.idleRpm` uses, now `entry.ratings.idleRpm` (both 680). The family import no longer contains `LLY`.
+- `window.__LLY__` and the QA hook names stay.
+- `tests/audio-pulses.test.mjs` line 7 now says the frame limit is the entry's `audio.maxFrameS`.
+
+No `entry` identifier existed in any of the three files before the change. The `LLY` export in `v8-ohv-kinematics.js` is untouched.
+
+### Commands
+
+- `npm test`: 183 tests, 35 suites, **183 passed, 0 failed** (384.4067 ms). Numeric baseline included.
+- `npm run check`:
+  - Names: **7 matches in 7 lines**, all `src/environment.js` (`DMAX`/`MORAINE`); no hit outside it.
+  - Numbers: **2 matches in 1 line**, `src/environment.js:1365`.
+  - Encoding PASS; IDs PASS; Provenance PASS (226 values, 64 records, 0 without record).
+- `npm run build`: **44 modules**, 273 ms; JS 1,304.64 kB, CSS 34.94 kB.
+- `npm run baseline:compare`:
+
+```text
+Browser metadata mismatch; skipping pixel comparison.
+  Baseline: 156.0.8078.48 / ANGLE (Intel, Intel(R) Arc(TM) 140V GPU (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)
+  Current:  157.0.8103.39 / ANGLE (Intel, Intel(R) Arc(TM) 140V GPU (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)
+```
+
+Exit 1. Trace, Geometry and pixel checks did not run; no baseline was edited.
+
+- DOM before/after snapshot: **0 differences**.
+
+### Hashes
+
+- `src/engines/active.js`: `DF7B6A7A460ECBB5A155E726A3E854753008FE28047F6C814DB36250955915C7`.
+- `src/collision.js`: `1DA8226D983ECBF854B0E2EDD9B9FBA6111A1843D6ABBD999AC9E1B5363F0819`.
+- `src/specs.js`: `DE8772BD46817B9B835D547ACDA2EC83C1221FF7D08ECF74E8E638655609282A`.
+- `src/main.js`: `5644BFDC03F40602293EA1F33F0CC3B1FE9622286E9B8B205E5119ABECE64ECC`.
+- `tests/audio-pulses.test.mjs`: `1FFCD7D56A846764DA31158F9B6F8E605ECE2300C66F2423A8F765F1D91D765D`.
+- Baselines unchanged:
+  - curves `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938`;
+  - trace `CC8FCFCF6DC7CD509BEAB452CFC50A94B7374DEBFCA6BED14D54A5ED6A0C440C`;
+  - geometry `9F387EAFDDEEB79C41F2288F12DB7661B9826EA6E41DA213C472215F27281D51`.
+
+### Not done
+
+No 2.7 work started. No commit, tag, push, add, reset, checkout or stash was run.
+
+## 2026-11-05 · Baseline re-capture on Chrome 157
+
+The Phase 2 gate needs a working official browser compare. Chrome had updated from 156.0.8078.48 to 157.0.8103.39, so `npm run baseline:compare` was skipping its trace and pixel checks. On 2026-11-05 the user approved re-capturing the baselines on Chrome 157 from `phase-0-done`.
+
+### Procedure
+
+- Backup of the Chrome 156 baselines, kept outside the repo: the six PNGs and `meta.json` from `.qa/baseline/`, and `lly-trace.json` and `lly-geometry.json`. The trace and geometry hashes match the values logged earlier (`CC8FCFCF…` and `9F387EAF…`).
+- Capture: `git archive phase-0-done` extracted into a fresh scratch folder (its `scripts/capture-browser.mjs` and `package.json` are identical to HEAD), then `node scripts/capture-browser.mjs` there. The working tree was not used, because capturing it would record the 2.6 code rather than phase-0.
+- Browser: Chrome 157.0.8103.39, renderer `ANGLE (Intel, Intel(R) Arc(TM) 140V GPU (8GB) (0x000064A0) Direct3D11 vs_5_0 ps_5_0, D3D11)`.
+- Checked before installing: all six PNGs byte-identical to the 156 set; trace and geometry values equal once the `browser` field is excluded; `meta.json` differs only in the browser version. `capture-browser.mjs` does not write `lly-curves.json`, which is unchanged.
+- Installed into the repo: `.qa/baseline/` (git-ignored), and `tests/baseline/lly-trace.json` and `tests/baseline/lly-geometry.json`. Each tracked file changed on one line only, `browser.version` 156.0.8078.48 → 157.0.8103.39.
+
+### Results
+
+- `npm run baseline:compare` on the 2.6 tree, run 1: exit 0; Trace PASS; Geometry PASS; home 0 changed (>8), 0 differ at all; the other five views 0 differ.
+- The same command, run 2, same code: Trace PASS; Geometry PASS; home 0 changed (>8), 1 differs at all, largest channel delta 1 (limit 1024) PASS; the other five views 0 differ. Exit 0.
+- The home view's single delta-1 pixel appears on some runs and not others, with the same code and browser. It is well below the pixel rule (channel delta 8, at most 1024 changed pixels) and is treated as render noise. The "1 sub-threshold pixel on record" notes in the 2.4a to 2.6 sections are consistent with this.
+- `npm test`: 183 tests, 0 failing, numeric baseline included.
+- `npm run check`: Names 7 matches in 7 lines and Numbers 2 in 1, all in `src/environment.js`. Encoding, IDs and Provenance PASS (226 values, 64 records, 0 without record).
+
+### Hashes after re-capture
+
+- `tests/baseline/lly-trace.json`: `8D378864ED306C74BF08BC2F60072165E0E57E1FD397769A4BDC5957A14E9590`
+- `tests/baseline/lly-geometry.json`: `C9CD7771525CD7C77823099A17087B8D06DEB3CF9C0F9455C60F9DB3A6E5074E`
+- `.qa/baseline/meta.json`: `F63DDEC009B9E046513DC7CCC0239D17E2EFE0F11D7F0E2B9A0D5F69CB39FD2A`
+- PNGs (bytes unchanged from the 156 set):
+- `home.png`: `AAC932846AF42442E5E3B6FF8B04853C5614663DEB4D4E88409FCC229E3432B8`
+- `cutaway.png`: `5701C92699897CA10AFE60872C3655621B671D5E555D998229C2E3B07CC08760`
+- `exploded.png`: `D819DEE261A74876C6B2CA1E2EE55A84FB17B85AF4F681A9CDF1DBA9B016E53E`
+- `cutaway-3250.png`: `1EA855577A01A1B4109F07CDEDFFFE2B7A8F49D18B81FA02E6EE3222F5148BE5`
+- `exploded-3250.png`: `049091726965CF165B42EEC9A37D0102D56B44E381255C2BAA8A27BEA4DA235E`
+- `walk-start.png`: `710A23B506002EB340CCEAC93A1389E6F49DEAA5C427F4706F947F85EFB8F717`
+- `tests/baseline/lly-curves.json`: `76E383E8A1D62A813004D37418DD299181EAC1D7483C2C602E5ABE366C495938` (unchanged).
+
+### Phase 2 gate status
+
+- `npm test`: pass. Baselines: pass on Chrome 157. Check outside `src/engines/`: pass except `src/environment.js`.
+- Open: the `src/environment.js` decision. Either exempt the file until Phase 3.2, which means a logged exclusion in `scripts/check.mjs`, or move the cell signage and the redline-derived gauge scale into Phase 2.
+- Nothing committed. The two tracked baseline files and the 2.6 changes wait for gate approval.
+
+## 2026-11-05 · Environment exemption and Phase 2 gate
+
+Decision (user, 2026-11-05): exempt `src/environment.js` from the Names and Numbers checks until Phase 3.2, when the cell signage and the gauge scales move to the entry.
+
+Changes:
+
+- `scripts/check.mjs`: `NAME_AND_NUMBER_EXEMPTIONS` lists `src/environment.js` with `until: 'Phase 3.2'` and a reason. Names and Numbers skip the file. Encoding, IDs and Provenance still scan it. Every run prints the exemption and each hit it covers, and the scope line names it.
+- `docs/engine-library-plan.md`: section 8 gains an Exemptions line, and section 11 gains open decision 4, decided 2026-11-05.
+
+Results:
+
+- `npm run check`: exit 0. Names PASS (0 matches; exempt: 7 matches in 7 lines in `src/environment.js`). Numbers PASS (0 matches; exempt: 2 matches in 1 line, `src/environment.js:1365`). Encoding PASS. IDs PASS. Provenance PASS (226 values, 64 records, 0 without record). Result PASS, 0 of 5 failed.
+- `npm test`: 183 tests, 0 failing, numeric baseline included.
+- `npm run baseline:compare` on the 2.6 tree, Chrome 157.0.8103.39, three runs (this gate and the two before it): exit 0 each. Trace PASS and Geometry PASS in every run. Home showed 0, 1 and 2 differing pixels across the runs, all at channel delta 1, so 0 changed pixels above the rule's 8 in every run. The other five views showed 0 differing pixels in every run. This variation with identical code is render noise. It replaces the earlier "1 sub-threshold pixel on record" wording.
+
+Phase 2 gate status:
+
+- Exit criteria from plan section 6: `npm test` passes; `npm run check` is clean outside `src/engines/`, with the logged `src/environment.js` exemption until Phase 3.2; every baseline passes on Chrome 157 after the re-capture from phase-0-done (see the re-capture section above).
+- Waiting for human gate approval. Nothing committed or tagged.
+- Commit scope when approved: the Phase 2 work (2.1 to 2.6), the re-captured `tests/baseline/lly-trace.json` and `tests/baseline/lly-geometry.json` (browser version only), the check script change, the plan and this log. The 2.3a rename stays staged as R100 (`src/engine.js` to `src/engines/families/v8-ohv.js`).

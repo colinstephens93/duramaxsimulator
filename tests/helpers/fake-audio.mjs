@@ -1,7 +1,9 @@
 // Just enough Web Audio to run src/audio.js in Node, plus a frame-clock driver that feeds it the same
 // crank step main.js takes. Lets the per-cylinder pulse scheduling be tested without a browser.
 import { TestCellAudio } from '../../src/audio.js';
-import { FIRING_ORDER, mod } from '../../src/kinematics.js';
+import lly from '../../src/engines/lly/index.js';
+import { FIRING_ORDER } from '../../src/engines/families/v8-ohv-kinematics.js';
+import { mod } from '../../src/kinematics.js';
 
 const SLOW_MOTION_SCALE = 0.12; // the factor main.js and audio.js both apply in slow motion
 
@@ -104,7 +106,11 @@ export async function createAudio() {
   globalThis.window = { AudioContext: FakeAudioContext };
   clock.now = 0;
   scheduleLog.length = 0;
-  const audio = new TestCellAudio();
+  const audio = new TestCellAudio({
+    maxRpm: lly.ratings.redlineRpm,
+    boostPeakPsi: lly.turbo.boostPeakPsi,
+    ...lly.audio,
+  });
   audio.enabled = true;
   await audio.unlock();
   return audio;
@@ -139,23 +145,23 @@ export async function simulate({ rpm, dts, slow = false, fuel = true, jumpAt = n
     events.push({ t: clock.now + delay, n: cylinder.number, frame, delay });
   };
   const timeScale = slow ? SLOW_MOTION_SCALE : 1;
-  const state = {
+  const audioFrame = {
     rpm,
     crankAngle: 0,
     fuel,
     starting: false,
     slowMotion: slow,
     cutaway: false,
-    _telemetry: { rail: 20000, boost: 15, vane: 40 },
+    telemetry: { rail: 20000, boost: 15, vane: 40 },
   };
   const frameEnd = [];
   for (let i = 0; i < dts.length; i++) {
     frame = i;
-    if (jumpAt === i) state.crankAngle = mod(state.crankAngle + jumpDeg, 720);
+    if (jumpAt === i) audioFrame.crankAngle = mod(audioFrame.crankAngle + jumpDeg, 720);
     clock.now += dts[i];
     frameEnd.push(clock.now);
-    state.crankAngle = mod(state.crankAngle + rpm * 6 * dts[i] * timeScale, 720);
-    audio.update(dts[i], state, null);
+    audioFrame.crankAngle = mod(audioFrame.crankAngle + rpm * 6 * dts[i] * timeScale, 720);
+    audio.update(dts[i], audioFrame, null);
   }
   return { events, tEnd: clock.now, frameEnd };
 }

@@ -110,6 +110,7 @@ export default {
       { rpm: 3000, label: 'PEAK HP', toast: 'PEAK HORSEPOWER' },
       { rpm: 3250, label: 'GOVERNOR', toast: 'GOVERNED REDLINE' },
     ],
+    defaultCalibration: 'allison',
   },
 
   curves: {
@@ -264,6 +265,9 @@ export default {
     runDamping: { aboveRpm: 2200, fast: 0.98, slow: 1.42 },
     stopDamping: 1.05,
     stopSnapRpm: 3.5,
+    firingAboveRpm: 90,
+    overspeedDamping: 6,
+    overspeedHeadroomRpm: 12,
     glow: {
       onStart: 0.85,
       crank: { target: 1, damping: 6 },
@@ -271,13 +275,15 @@ export default {
       idle: { target: 0.12, damping: 2.4 },
       ramp: { target: 0, damping: 2.8 },
       running: { target: 0, damping: 3 },
-      stopped: { damping: 1.5 },
+      stopped: { damping: 1.5, cutoff: 0.001 },
     },
   },
 
   audio: {
     baseToneHz: 45.3,
     maxFrameS: 0.2,
+    firingAboveRpm: 80,
+    pulsesPerRev: 4,
     bankCadence: true,
     turboWhistle: true,
     injectorKnock: true,
@@ -285,6 +291,9 @@ export default {
 
   inspect: {
     quickParts: ['turbo', 'valvetrain', 'cp3', 'block'],
+    aliases: {
+      valvetrain: ['camshaft', 'lifters', 'pushrods', 'rockers', 'valve-bridges', 'valves'],
+    },
   },
 
   walk: {
@@ -404,6 +413,44 @@ export default {
         { text: 'COMMON RAIL · 26K PSI', font: '600 23px Bahnschrift', color: '#b8b9ac', small: true },
       ],
     },
+    bankLabels: {
+      head: {
+        R: { text: 'RIGHT BANK · 1-3-5-7', font: '600 34px Bahnschrift, Arial', color: '#52534e', small: true },
+        L: { text: 'LEFT BANK · 2-4-6-8', font: '600 34px Bahnschrift, Arial', color: '#52534e', small: true },
+      },
+      bank: {
+        R: { text: 'BANK R  ·  1-3-5-7', font: '700 75px Bahnschrift, Arial', color: '#1c211e' },
+        L: { text: 'BANK L  ·  2-4-6-8', font: '700 75px Bahnschrift, Arial', color: '#1c211e' },
+      },
+      side: {
+        R: { text: 'PASSENGER BANK', font: '500 28px Bahnschrift, Arial', color: '#82521a', small: true },
+        L: { text: 'DRIVER BANK', font: '500 28px Bahnschrift, Arial', color: '#82521a', small: true },
+      },
+    },
+    labelStyles: {
+      capNumeral: { font: '700 98px Bahnschrift, Arial', color: '#b5aa8a' },
+      valveIndex: { font: '700 88px Bahnschrift, Arial', color: '#d9d3bb' },
+      rockerMark: { font: '800 96px Bahnschrift, Arial', color: '#2e312e' },
+    },
+    outline: {
+      base: {
+        edgeColor: 0xe9a33d,
+        hiddenColor: 0x20180c,
+        edgeStrength: 4.5,
+        edgeGlow: 0.3,
+        edgeThickness: 1.0,
+      },
+      hover: {
+        edgeColor: 0x86c0c2,
+        hiddenColor: 0x0e2828,
+        edgeStrength: 3.1,
+      },
+      selected: {
+        edgeColor: 0xe9a33d,
+        hiddenColor: 0x332711,
+        edgeStrength: 5.1,
+      },
+    },
   },
 
   explode: {
@@ -433,6 +480,86 @@ export default {
     filter: 'ACDelco PF2232',
   },
 
+  ui: {
+    title: 'DMAX LLY 6600 \u2014 Engine Test Cell',
+    description: 'Interactive 6.6L Duramax LLY 90-degree V8 turbodiesel engine on an industrial dynamometer test stand.',
+    canvasAria: 'Interactive 3D Duramax LLY engine simulation',
+    header: {
+      brandHtml: 'DURAMAX<span>6600</span>',
+      brandSub: 'LLY \u00a0\u00b7\u00a0 DMAX MORAINE \u00a0\u00b7\u00a0 ENGINE TEST CELL',
+      category: 'POWERTRAIN CONTROL',
+      title: 'LLY // RUN CELL',
+      spec: {
+        displacement: '6.6L V8',
+        layout: '90\u00b0 OHV',
+        valves: '32 VALVE',
+        firingOrder: '1\u20132\u20137\u20138\u20134\u20135\u20136\u20133',
+      },
+      firing: {
+        right: '1\u20133\u20135\u20137',
+        left: '2\u20134\u20136\u20138',
+        cycle: '720\u00b0 CYCLE \u00b7 90\u00b0 FIRING INTERVAL',
+      },
+    },
+    walk: {
+      engineLabel: 'LLY 6600',
+    },
+    telemetry: {
+      boostTitle: 'GT3788VA BOOST',
+      chartAxis: ['0', '800', '1600', '2400', '3250 RPM'],
+    },
+    calibration: {
+      pump: 'CP3.3',
+      allison: { button: 'ALLISON 1000', tipName: 'Allison 1000 Automatic' },
+      zf: { button: 'ZF S6-650', tipName: 'ZF S6-650 6-Speed Manual' },
+    },
+    quickParts: {
+      turbo: 'TURBO',
+      valvetrain: 'VALVETRAIN',
+      cp3: 'CP3.3',
+      block: 'BLOCK',
+    },
+    display: {
+      tachRedBandRpm: 3000,
+      governedLabelRpm: 3200,
+      adaptiveToastMs: 3200,
+    },
+    toasts: {
+      audioOnline: 'TEST CELL AUDIO ONLINE \u00b7 V8 + GT3788VA SYNTH',
+    },
+    capture: {
+      caption: 'DMAX  //  LLY 6600  \u00b7  TEST CELL 04',
+      place: 'MORAINE, OHIO  \u00b7  ENGINE TEST CELL',
+      fileStem: 'duramax-lly-test-cell',
+    },
+    inspector: {
+      displacement: '6,599 cc',
+      boreStroke: '103 \u00d7 99 mm',
+      dryMass: '835 lb',
+    },
+    help: {
+      eyebrow: 'LLY SIMULATION GUIDE',
+      footerLeft: 'DMAX TEST CELL 04 \u00b7 MORAINE, OHIO',
+      footerRight: 'LLY 6.6L / 402.62 CID',
+    },
+    specSheet: {
+      title: '6.6L DURAMAX LLY',
+      displacement: '6,599 cc / 402.62 CID',
+      configuration: '90\u00b0 V8 \u00b7 OHV \u00b7 32V',
+      boreStroke: '103.00 \u00d7 99.00 mm',
+      boreStrokeRatio: '1.04 : 1',
+      firingOrder: '1\u20132\u20137\u20138\u20134\u20135\u20136\u20133',
+      compression: '17.5:1 / 16.8:1',
+      peakTorque: '605 / 520 lb-ft @ 1,600',
+      peakPower: '310 / 300 hp @ 3,000',
+      governedSpeed: '3,250 RPM',
+      oilCapacity: '10 US qt \u00b7 PF2232',
+      dryMass: '\u2248 835 lb',
+      envelope: '30 \u00d7 30 \u00d7 32 in',
+      footnote: 'Real-time mechanical & acoustic visualisation: exact 99 mm-stroke crank-slider motion, cam-in-block ratio 0.5\u00d7, 16 pushrods and 16 valve bridges operating 32 valves, dual transmission calibrations (Allison 1000 / ZF S6-650), and phase-locked Web Audio API synthesis. Visualisation only \u2014 not OEM service data.',
+    },
+  },
+
   provenance: {
     'geometry.displacementCc': ['S01', 'S02'],
     'geometry.displacementCid': ['S01', 'S02'],
@@ -445,6 +572,8 @@ export default {
     'geometry.massLb': ['S01', 'S02'],
 
     'layout.banks': 'design',
+    'ui.display': 'design',
+    'look.outline': 'design',
     'layout.stationZmm': 'design',
     'layout.throwOffsetDeg': 'design',
     'layout.cylinders': 'design',

@@ -1005,3 +1005,7 @@ export function smoothstep(edge0, edge1, x) {
 export function damp(current, target, lambda, dt) {
   return THREE.MathUtils.damp(current, target, lambda, dt);
 }
+
+export function clamp(value, min, max) {
+  return THREE.MathUtils.clamp(value, min, max);
+}
