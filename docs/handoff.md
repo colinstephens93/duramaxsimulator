@@ -1,11 +1,11 @@
 # Handoff: engine library
 
-Last updated: 2026-11-09. The human confirmed the Windows picker fix works, accepted the build ("I am good with it") and explicitly requested "Push and merge". The final gate is approved. Preparing the accepted work on engine-library for a history-preserving merge into master and push to origin. Prior HEAD was `910f643`; release commit IDs are recorded in Git history and the final execution report. No environment publication is requested.
+Last updated: 2026-11-08 (America/New_York). The human confirmed the Windows picker fix, accepted the final build and requested push/merge. Implementation and all release checks pass. Accepted source commit: `f572cbd`; this release documentation records the gate and authorized integration into `master` on the existing `origin`. Git branch/tag history records the resulting merge/publication IDs. No environment publication is requested.
 
 ## 1. Where things stand
 
 - Checkout: `/workspace/duramaxsimulator`, Bash/Node 24, source checkout initially on local `work`; release branches are `engine-library` and `master`. Preserve every documented uncommitted change; do not reset or reapply old edit scripts.
-- Latest committed code checkpoint: `e13290b`; documentation HEAD `910f643`. Original phase-0/1/2 tags remain; no new phase tags were made.
+- Prior code checkpoint: `e13290b`, previous documentation HEAD `910f643`. Accepted MVP source commit: `f572cbd`. Original phase-0/1/2 tags remain; the final gate is marked by `phase-6-done`.
 - Production engines: LLY and LBZ. Synthetic `lly-copy` is registered only in Vite test mode and absent from production. Both real engines have separate lazy entry/copy chunks.
 - Runtime switching, live QA/current bindings, shared cell/audio retention, owned model/stand disposal and prop collision are implemented. The sole QA hook is `window.__ENGINE__`.
 - Eighteen unused tracked archive files and `src/engines/active.js` are deliberately deleted. Numeric fixture change is exactly one corrected calibration-label string; no measured LLY value changed.
@@ -31,16 +31,16 @@ Windows follow-up (user-supplied terminal log, 2026-11-08): 247 tests, all check
 - `npm test`: 247 tests, 39 suites, 247 pass, zero failures/cancellations/skips.
 - `npm run check`: all five PASS; LLY 229 values/65 records/0 missing, LBZ 229/46/0.
 - `npm run build` and `npm run check:dist`: PASS; separate lazy entry chunks, no synthetic fixture; existing size warning remains.
-- Full browser report `.qa/browser/run-1794175989080.json`: four modules pass, zero console/page errors. Covers twelve measured prop envelopes, both real engines, calibration/start/presets, pointer-lock rejections at both call sites, and twenty swaps after warm-up with stable 617 geometries/91 textures.
+- Original full browser report `.qa/browser/run-1794175989080.json`: four modules passed. Final release suite also includes the real-click picker regression: all five modules pass with zero console/page errors. Covers twelve measured prop envelopes, both real engines, calibration/start/presets, pointer-lock rejections at both call sites, and twenty swaps after warm-up with stable 617 geometries/91 textures.
 - Pre-hardening LLY cloud regression `.qa/cloud/run-1794175217556-7888/comparison.json`: exact traces/geometry and six zero-difference views.
 - Phase-6 numeric re-capture: exactly `constants.CALIBRATIONS.allison.label` changed from the disputed speed-count label to Allison 1000 automatic. Old/new supplemental trace/geometry are exact; intended chair image differences audited in `.qa/cloud/phase6-reference-audit.json`. Original `.qa/cloud/reference` is unchanged; the new reference is separate at `.qa/cloud/reference-phase6`.
 - Final `compare-phase6` exits 0: `.qa/cloud/run-1794176141888-12227/comparison.json`, exact traces/geometry, six views each 0 changed/differing pixels and max delta 0. Both references retain their saved checksums.
 - Original `npm run baseline:compare` still fails here: missing `.qa/baseline`. Do not substitute software-rendered PNGs for original Windows acceptance.
 
-## 4. Release actions
+## 4. Release record
 
-1. Final human acceptance received: commit the fully accepted engine-library MVP, preserving all previously reviewed changes and recorded tests.
-2. Fetch/check origin, merge engine-library into master with preserved history, tag the accepted final gate and push only the intended branches/tag. Never force-push or rewrite remote history.
+1. Final human acceptance received and reviewed source committed as `f572cbd`, preserving every documented package and validation result.
+2. Authorized integration: history-preserving merge of engine-library into master, final gate tag phase-6-done, and push of these explicit refs to origin. The initial remote branches were checked and write access passed a dry-run. Never force-push or rewrite remote history.
 3. Confirm remote branch/tag commit IDs match the local release. Keep ignored cloud/Windows evidence as local artifacts; no environment publication or hosting deployment is requested.
 4. Future work: the documented post-MVP presentation/physical corrections and inline-six remain separate scope.
 ## 5. Decisions and accuracy limits

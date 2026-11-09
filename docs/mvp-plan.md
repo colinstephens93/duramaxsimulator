@@ -1,6 +1,6 @@
 # MVP plan: from the Phase 3 checkpoint to a shippable engine library
 
-Status: written 2026-11-05 at checkpoint `e13290b`; implementation current through Phase 6 on 2026-11-08. Current evidence and remaining original Windows/manual acceptance are in [handoff.md](handoff.md); [Phase 6 execution](prompts/6-hardening.md) and the append-only build log document corrections and the separate re-capture. Final human acceptance/push/merge requested 2026-11-09; environment publication remains outside scope.
+Status: written 2026-11-05 at checkpoint `e13290b`; implementation current through Phase 6 on 2026-11-08. Current evidence and remaining original Windows/manual acceptance are in [handoff.md](handoff.md); [Phase 6 execution](prompts/6-hardening.md) and the append-only build log document corrections and the separate re-capture. Final human acceptance/push/merge requested 2026-11-08 (America/New_York); environment publication remains outside scope.
 
 Where this plan and the design disagree, this plan says so and names the decision (section 7). Nobody changes a decision silently.
 
@@ -83,7 +83,7 @@ REPORT BACK: exactly what to paste.
 
 ## 3. Current status and the next package
 
-The human authorized completing as much remaining work as possible with all approvals given. Earlier wait-after-each-package language is historical; packages were implemented sequentially and completion reported. The human accepted the final Windows picker fix and requested push/merge on 2026-11-09. Release preparation now commits the reviewed accumulated work.
+The human authorized completing as much remaining work as possible with all approvals given. Earlier wait-after-each-package language is historical; packages were implemented sequentially and completion reported. The human accepted the final Windows picker fix and requested push/merge on 2026-11-08 (America/New_York). Release preparation now commits the reviewed accumulated work.
 
 - Phases 0–2: previously gated/tagged, not reopened.
 - Phase 3: runtime switching, ownership/disposal, browser memory checks and prop collision implemented; automated cloud acceptance passes.
@@ -377,7 +377,7 @@ The human decides these. The default is what happens if nobody answers before th
 
 ## 9. Git and release policy
 
-Release decision, 2026-11-09: the human accepted the accumulated final build and requested push/merge. Phases 3, 4 and 6 were developed and accepted together without intermediate commits. Preserve that honest history with one consolidated accepted-MVP commit and the final phase-6-done gate tag; do not reconstruct untested historical phase states or imply intermediate snapshot tags. Merge into master without rewriting either branch. Earlier per-phase defaults below describe the original cadence.
+Release decision, 2026-11-08 (America/New_York): the human accepted the accumulated final build and requested push/merge. Phases 3, 4 and 6 were developed and accepted together without intermediate commits. Preserve that honest history with one consolidated accepted-MVP commit and the final phase-6-done gate tag; do not reconstruct untested historical phase states or imply intermediate snapshot tags. Merge into master without rewriting either branch. Earlier per-phase defaults below describe the original cadence.
 
 - **Branches.** `engine-library` is the working branch. `master` is the base. It holds the app before the refactor, at `864f014`. Nobody resets a shared branch (plan section 10).
 - **Checkpoints.** A WIP commit may be made when the human asks to save progress. It is labelled `WIP` in the subject, is not tagged, and does not replace the phase commit.
