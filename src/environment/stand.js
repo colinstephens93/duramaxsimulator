@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createResourceDisposer } from '../core/resources.js';
 import {
   addBoltAt,
   box,
@@ -8,6 +9,7 @@ import {
   makeHazardTexture,
   makeLabelTexture,
   mesh,
+  mergeStaticMeshes,
   roundedBox,
   torus,
   tube,
@@ -23,20 +25,59 @@ export function makeStandBadgeTexture(standMain, standSub) {
   );
 }
 
-export function buildStand({
-  root,
-  register,
-  m,
-  TAU,
-  addGroup,
-  iBeam,
-  steel,
-  yellow,
-  rubber,
-  black,
-  red,
-  branding,
-}) {
+function addGroup(parent, id = null) {
+  const g = new THREE.Group();
+  if (id) {
+    g.userData.partId = id;
+    g.name = `part-${id}`;
+  }
+  parent.add(g);
+  return g;
+}
+
+function iBeam(group, length, height, material, position, rotation = [0, 0, 0], axis = 'z') {
+  const g = new THREE.Group();
+  g.position.set(...position);
+  g.rotation.set(...rotation);
+  const webT = 0.024;
+  const flangeT = 0.028;
+  const width = 0.15;
+  if (axis === 'z') {
+    g.add(box(webT, height, length, material, { position: [0, 0, 0], castShadow: true, receiveShadow: true }));
+    g.add(box(width, flangeT, length, material, { position: [0, height / 2 - flangeT / 2, 0] }));
+    g.add(box(width, flangeT, length, material, { position: [0, -height / 2 + flangeT / 2, 0] }));
+  } else {
+    g.add(box(length, height, webT, material, { position: [0, 0, 0], castShadow: true, receiveShadow: true }));
+    g.add(box(length, flangeT, width, material, { position: [0, height / 2 - flangeT / 2, 0] }));
+    g.add(box(length, flangeT, width, material, { position: [0, -height / 2 + flangeT / 2, 0] }));
+  }
+  group.add(g);
+  return g;
+}
+
+function brandingFromEntry(entry) {
+  const source = entry.ui?.branding ?? {};
+  return {
+    standMain: source.standMain ?? 'DYNO',
+    standSub: source.standSub ?? 'HEAVY DUTY DYNO BEDPLATE',
+  };
+}
+
+// The caller owns these two existing roots; no additional Group changes the seeded UUID stream.
+export function buildStand(root, materials, entry) {
+  const m = materials;
+  const TAU = Math.PI * 2;
+  const branding = brandingFromEntry(entry);
+  const interactives = new Map();
+  const register = (id, obj) => {
+    if (!interactives.has(id)) interactives.set(id, []);
+    interactives.get(id).push(obj);
+  };
+  const steel = m.standSteel;
+  const yellow = m.standYellow;
+  const rubber = m.rubber;
+  const black = m.wrinkleBlack;
+  const red = m.red;
   // -----------------------------------------------------------------------
   // Test stand
   // -----------------------------------------------------------------------
@@ -544,5 +585,38 @@ export function buildStand({
   );
   guard.add(guardMesh);
 
-  return { stand, dyno, badge: badgeMesh.material };
+  // Keep attachments out of the cell merge; their owner finalizes them afterward.
+  stand.userData.dynamic = true;
+  dyno.userData.dynamic = true;
+  let finalized = false;
+  const finalize = () => {
+    if (finalized) return;
+    mergeStaticMeshes(stand);
+    mergeStaticMeshes(dyno);
+    finalized = true;
+  };
+  const setBranding = (nextEntry) => {
+    const next = brandingFromEntry(nextEntry);
+    const nextBadge = makeStandBadgeTexture(next.standMain, next.standSub);
+    badgeMesh.material.map?.dispose();
+    badgeMesh.material.map = nextBadge;
+    badgeMesh.material.needsUpdate = true;
+  };
+  guard.updateWorldMatrix(true, true);
+  const disposeResources = createResourceDisposer([stand, dyno], materials);
+  return {
+    roots: [stand, dyno],
+    stand,
+    dyno,
+    badge: badgeMesh.material,
+    interactives,
+    finalize,
+    setBranding,
+    dispose() { disposeResources(); interactives.clear(); },
+    collision: {
+      centerRadius: 1.25,
+      dynoBox: new THREE.Box3(new THREE.Vector3(-0.8, 0, -2.3), new THREE.Vector3(0.8, 1.5, -1.05)),
+      guardBox: new THREE.Box3().setFromObject(guard),
+    },
+  };
 }

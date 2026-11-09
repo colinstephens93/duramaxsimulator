@@ -6,12 +6,14 @@ findings. Paths and line numbers refer to this repository checkout, as checked a
 
 ## a. Two ways to drive the app
 
+2026-11-08 Windows follow-up: actual mouse hit-testing must be included for the engine picker. Programmatic selectOption can bypass CSS pointer-events and did not catch the missing select exception under the non-interactive UI overlay. The CSS exception is fixed; tests/browser/picker.browser.mjs checks the hit target and performs real mouse clicks/native selection for both directions. User-reported Windows baseline and approximately 60 FPS pass; manual picker retest uses the rebuilt preview.
+
 ### Scripted path (Chrome through Playwright)
 
 Use `scripts/capture-browser.mjs` as the reference. It serves the app through
 Vite's `createServer` on a free port, launches installed Chrome with
 `channel: 'chrome'`, headless, and the same arguments as
-`scripts/webgl-probe.mjs`, and drives the app through `window.__LLY__`.
+`scripts/webgl-probe.mjs`, and drives the app through `window.__ENGINE__`.
 
 The two entry points are:
 
@@ -48,15 +50,15 @@ The copied JS and CSS stay byte-identical. Only the copy's HTML gets the shim.
    `.claude/launch.json` and `preview_start`; `.claude/` does not normally exist
    and must be removed afterwards.
 5. Open `/?qa=1` and resize the window to 1366x768.
-6. Drive the app through `window.__LLY__`.
+6. Drive the app through `window.__ENGINE__`.
 7. Clean up as described in section f.
 
 The hidden-pane rAF behavior is carried from the notes and has not been
 re-checked here.
 
-## b. Hooks on window.__LLY__
+## b. Hooks on window.__ENGINE__
 
-The object is assigned at `window.__LLY__ = {` in `src/main.js` (line 1542 at the checkpoint; `render` is at line 1615). Every name below is present. From package 3.3d, `window.__ENGINE__` is the same object, and `__LLY__` is an alias until Phase 6.
+The object is assigned at `window.__ENGINE__ = {` in `src/main.js` (line 1542 at the checkpoint; `render` is at line 1615). Every name below is present. From package 3.3d, `window.__ENGINE__` is the same object, and `__ENGINE__` is an alias until Phase 6.
 
 | Hook | What it is |
 | --- | --- |
@@ -103,7 +105,7 @@ telemetry. That block is gated by `if (!QA_MODE)` at `src/main.js:1533`.
 The loop still runs the hover check, screenshot check, FPS sampler and render.
 
 The simulation, camera and telemetry advance only through
-`window.__LLY__.render(count)` at `src/main.js:1615`. Each iteration:
+`window.__ENGINE__.render(count)` at `src/main.js:1615`. Each iteration:
 
 ```text
 simulation.elapsed += 1 / 60
@@ -185,11 +187,8 @@ git archive <sha> index.html package.json src | tar -x
 Then junction `node_modules` into the scratch copy and serve it on a second
 port. The notes call for a junction; clean it up as described in section f.
 
-**requestPointerLock promise - checked.**
-`enterWalk()` calls `canvas.requestPointerLock?.()` at `src/main.js:454`; the
-canvas pointerdown handler calls it at `src/main.js:1305`. Both are optional
-calls whose returned promise is not awaited or caught, so a rejection can be
-uncaught.
+**requestPointerLock rejection - fixed in 6.8.**
+Both enterWalk and the canvas pointerdown handler catch rejected pointer-lock promises and show a click-to-capture toast. The browser test injects rejection at both call sites and requires zero page/console errors.
 
 **Hidden-pane rAF - from notes, not re-checked.**
 While the built-in pane is hidden, `requestAnimationFrame` does not fire. The
@@ -212,16 +211,12 @@ project's own `dist/` or source tree.
 ## g. Known open findings
 
 From the QA notes as of 2026-10-27, re-checked at the 3.2b checkpoint (2026-11-05). These are known gaps, not regressions, and
-they are not fixed:
+the remaining gaps are listed below. Package 3.7 adds prop collision (2026-11-08):
 
-- Walk mode has no collision for props: the work-lamp post around (-2.0, 1.7),
-  the tool chest at (2.82, 1.16), and other props. `buildWalkWorld()` already
-  accepts circles and boxes, so adding them is small. Planned in package 3.7 (`docs/mvp-plan.md`).
+- **Fixed in 3.7:** walk collision for twelve upright floor props, including the work lamp and tool chest. Exported circle/box envelopes are verified against pre-merge mesh bounds; walking substeps shrink for narrow obstacles to prevent tunneling. No prop moved in 3.7. Package 6.6 subsequently moved the chair outside the walking circle, verified 0.261 m envelope clearance and removed the exemption.
 - The outline's hidden-edge colour (`outlinePass.hiddenEdgeColor` in
   `src/main.js`; initial set at `:183`) is nearly invisible.
-- `canvas.requestPointerLock?.()` in `enterWalk` and the canvas pointerdown
-  handler can reject as an uncaught promise (`src/main.js:454` and `:1305`).
+- **Fixed in 6.8:** pointer-lock promise rejections are caught at both call sites.
 - The quick-part buttons for internal parts show nothing in the assembled view.
 - The default exploded-view camera is too wide.
-- Injector wording remains an open content decision: the brief says
-  piezoelectric, while production LLY used Bosch solenoid (README notes this).
+- Injector wording now explicitly records the brief/research disagreement; no undisputed actuation claim is made.

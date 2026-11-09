@@ -57,9 +57,9 @@ async function openAppPage(context, appUrl, label, errors) {
   trackConsole(page, label, errors);
   await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__LLY__
-      && window.__LLY__.engine
-      && window.__LLY__.simulation
+    () => window.__ENGINE__
+      && window.__ENGINE__.engine
+      && window.__ENGINE__.simulation
       && document.getElementById('bootStatus')?.classList.contains('done'),
     undefined,
     { timeout: 60000 },
@@ -67,9 +67,9 @@ async function openAppPage(context, appUrl, label, errors) {
   return page;
 }
 
-async function readBrowserInfo(page, browser) {
+async function readBrowserInfo(page, browser, allowSoftwareRenderer = false) {
   const result = await page.evaluate(() => {
-    const app = window.__LLY__;
+    const app = window.__ENGINE__;
     const gl = app.renderer.getContext();
     const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
     const renderer = debugInfo
@@ -88,7 +88,7 @@ async function readBrowserInfo(page, browser) {
   if (!result.renderer) {
     throw new Error('Renderer string is unavailable');
   }
-  if (/swiftshader/i.test(result.renderer)) {
+  if (!allowSoftwareRenderer && /swiftshader/i.test(result.renderer)) {
     throw new Error(`Renderer contains SwiftShader: ${result.renderer}`);
   }
 
@@ -106,7 +106,7 @@ async function captureTrace(context, appUrl, slowMotion, errors) {
   const page = await openAppPage(context, appUrl, label, errors);
 
   const run = await page.evaluate(({ useSlowMotion, maxSteps, holdSteps }) => {
-    const app = window.__LLY__;
+    const app = window.__ENGINE__;
     if (useSlowMotion) app.toggleSlowMotion();
 
     function sample() {
@@ -191,7 +191,7 @@ async function captureGeometry(context, appUrl, browserInfo, errors) {
   const page = await openAppPage(context, appUrl, 'geometry', errors);
 
   const result = await page.evaluate(() => {
-    const app = window.__LLY__;
+    const app = window.__ENGINE__;
     app.resetCamera();
     app.render(120);
 
@@ -276,15 +276,16 @@ async function captureBuildTimes(context, baseUrl, errors) {
   await page.goto(benchmarkUrl, { waitUntil: 'load' });
 
   const times = await page.evaluate(async () => {
-    const [{ buildEngine }, { createMaterials }] = await Promise.all([
+    const [{ buildEngine }, { createMaterials }, { default: lly }] = await Promise.all([
       import('/src/engines/families/v8-ohv.js'),
       import('/src/utils.js'),
+      import('/src/engines/lly/index.js'),
     ]);
 
     const values = [];
     for (let index = 0; index < 5; index += 1) {
       const start = performance.now();
-      buildEngine(createMaterials());
+      buildEngine(createMaterials(), lly);
       values.push(performance.now() - start);
     }
     return values;
@@ -301,32 +302,38 @@ async function captureBuildTimes(context, baseUrl, errors) {
   };
 }
 
-async function captureViews(viewContext, appUrl, errors) {
+async function captureViews(viewContext, appUrl, errors, batchRendering = false) {
   const views = {};
 
   for (const name of VIEW_NAMES) {
     const page = await openAppPage(viewContext, appUrl, `view-${name}`, errors);
-    const dataUrl = await page.evaluate((viewName) => {
-      const app = window.__LLY__;
+    const dataUrl = await page.evaluate(({ viewName, batchRendering }) => {
+      const app = window.__ENGINE__;
+      // QA render(count) advances the identical fixed steps, composing once at the end.
+      // Windows captures still compose every intermediate frame as originally specified.
+      const renderFrames = (count) => {
+        if (batchRendering) app.render(count);
+        else for (let render = 0; render < count; render += 1) app.render(1);
+      };
       app.setUiVisible(false);
       app.resetCamera();
-      for (let render = 0; render < 120; render += 1) app.render(1);
+      renderFrames(120);
 
       if (viewName === 'home') {
         app.setFixture({ rpm: 680 });
         app.render(1);
       } else if (viewName === 'cutaway') {
         app.setFixture({ rpm: 680, cutaway: true });
-        for (let render = 0; render < 300; render += 1) app.render(1);
+        renderFrames(300);
       } else if (viewName === 'exploded') {
         app.setFixture({ rpm: 680, exploded: true });
-        for (let render = 0; render < 300; render += 1) app.render(1);
+        renderFrames(300);
       } else if (viewName === 'cutaway-3250') {
         app.setFixture({ rpm: 3250, cutaway: true });
-        for (let render = 0; render < 300; render += 1) app.render(1);
+        renderFrames(300);
       } else if (viewName === 'exploded-3250') {
         app.setFixture({ rpm: 3250, exploded: true });
-        for (let render = 0; render < 300; render += 1) app.render(1);
+        renderFrames(300);
       } else if (viewName === 'walk-start') {
         app.setFixture({ rpm: 680 });
         try {
@@ -344,7 +351,7 @@ async function captureViews(viewContext, appUrl, errors) {
         throw new Error(`View ${viewName} canvas is ${canvas.width}x${canvas.height}, expected 1280x800`);
       }
       return canvas.toDataURL('image/png');
-    }, name);
+    }, { viewName: name, batchRendering });
 
     const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
     const buffer = Buffer.from(base64, 'base64');
@@ -357,7 +364,10 @@ async function captureViews(viewContext, appUrl, errors) {
   return views;
 }
 
-export async function captureBrowser() {
+// Cloud validation is opt-in; the original Windows capture keeps its defaults.
+export async function captureBrowser({ cloud = false, executablePath } = {}) {
+  if (executablePath && !cloud) throw new Error('An explicit executable requires cloud mode');
+  if (cloud && !executablePath) throw new Error('Cloud mode requires an explicit Chrome executable');
   let server;
   let browser;
   const consoleErrors = [];
@@ -383,14 +393,14 @@ export async function captureBrowser() {
     console.log(`Vite: ${baseUrl}`);
 
     browser = await chromium.launch({
-      channel: 'chrome',
+      ...(cloud ? { executablePath } : { channel: 'chrome' }),
       headless: true,
       args: LAUNCH_ARGS,
     });
     const context = await browser.newContext();
 
     const infoPage = await openAppPage(context, appUrl, 'renderer', consoleErrors);
-    const browserInfo = await readBrowserInfo(infoPage, browser);
+    const browserInfo = await readBrowserInfo(infoPage, browser, cloud);
     await infoPage.close();
 
     const runs = [];
@@ -416,7 +426,7 @@ export async function captureBrowser() {
       viewport: { width: VIEW_WIDTH, height: VIEW_HEIGHT },
       deviceScaleFactor: VIEW_DEVICE_SCALE_FACTOR,
     });
-    const views = await captureViews(viewContext, appUrl, consoleErrors);
+    const views = await captureViews(viewContext, appUrl, consoleErrors, cloud);
 
     return {
       browser: browserInfo,

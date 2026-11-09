@@ -4,7 +4,9 @@
 // RPM or frame rate.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { CYLINDERS } from '../src/engines/families/v8-ohv-kinematics.js';
+import lly from '../src/engines/lly/index.js';
+import { kinematicsFor } from '../src/engines/families/v8-ohv-kinematics.js';
+const { cylinders: CYLINDERS } = kinematicsFor(lly);
 import { analyze, clock, createAudio, gapStats, mulberry32, scheduleLog, simulate, steady } from './helpers/fake-audio.mjs';
 
 // Mirrors the entry's audio.maxFrameS: frames longer than this are stalls and play no pulses.

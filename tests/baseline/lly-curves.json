@@ -42,7 +42,7 @@
     "CALIBRATIONS": {
       "allison": {
         "id": "allison",
-        "label": "Allison 1000 6-Spd Auto",
+        "label": "Allison 1000 automatic",
         "shortLabel": "ALLISON 1000 AUTO",
         "peakTorqueLbFt": 605,
         "peakHp": 310,

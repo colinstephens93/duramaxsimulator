@@ -1,0 +1,15 @@
+# Phase 4: LBZ, sequential packages 4.0–4.5
+
+2026-11-08. The human authorized proceeding through remaining work with all approvals given. Start implementation after Phase 3 automated acceptance passes. Original Windows/manual evidence remains separately outstanding; do not claim a manual gate, commit/tag/merge or publish on that basis.
+
+4.0: adopt documented defaults D4–D6: 163.0 mm rod length with medium confidence from family listings S13/S14, LLY valve timing labelled design, and inherited behavior/look labelled design. Record these decisions in handoff/design/MVP and amend runbook rule 7 to allow explicitly approved design substitutions. Research itself remains unchanged. D11 retains its documented default for later LLY wording; new LBZ copy can acknowledge the recorded injector-type dispute without claiming unsupported mechanisms.
+
+4.1/4.3: create independent src/engines/lbz/index.js data (all required keys, no live dependency on LLY). Read only research/lbz.md and sources.md; no fresh research. Source geometry, ratings, two calibrations, turbo and features there. UI/appearance/behavior/curve interpolation are design values. Explicit curves must reach 650 lb-ft/360 hp and 605 lb-ft/310 hp at their respective sourced rpm; interpolation between peaks is illustrative. Kodiak pressure uses the stated engine-level maximum, with an explicit note that LPD pressure was not separately stated. Record every numeric value's provenance and contested boost. Add tests/lbz.test.mjs for schema, geometry, provenance/rated peaks and copy when available. Do not register before copy exists.
+
+4.2: independent LBZ copy module, every family/stand/environment part represented. Make researched dimensions and ratings clear; describe unresearched construction as illustrative. No unsupported rod/piston/cooler difference claims or inherited LLY-only assertions.
+
+4.4: registry lazy loader/ID, planned registry test ID/URL/spec-copy migrations, plus tests/browser/lbz.browser.mjs. Update new test-only fixture tests' exclusion expectations for the newly registered production engine (the synthetic ID must remain excluded); document this supporting migration. Browser tests must not hardcode only two picker options. Verify actual LBZ boot, engine/stand branding, rods/kinematics, two calibration controls, start and preset behavior. Keep test copy gated out of production.
+
+4.5: run full Node/check/build/browser and unchanged-LLY cloud regression. All capture guard/review hashes remain explicit; references unchanged. Report each package as verified before advancing; document all files/hashes/results in build log and handoff. No staging/commit/push/publication required.
+
+Completed sequentially: 4.0 decisions recorded, 4.1/4.3 data/provenance validated, 4.2 copy covers every part, 4.4 registry/test migrations and LBZ browser smoke pass, 4.5 all 246 tests/check/build/three browser modules and unchanged LLY cloud reference pass. Exact evidence and hashes in build log. Continue Phase 6; original Windows/manual acceptance remains pending.

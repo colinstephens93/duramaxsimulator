@@ -1,0 +1,21 @@
+# Phase 6 hardening, sequential packages
+
+2026-11-08. Authorized by the human's instruction to proceed with remaining work/all approvals. Begin after Phase 4 automated checks pass. Preserve prior uncommitted work. Manual/Windows/audio/FPS gates remain evidence requirements, not implicitly completed by code approval. No commit/tag/push/merge/publication needed.
+
+6.1: apply research/lly.md section 8 copy corrections. Drop disputed Allison speed count; mark unsourced starter gear/brand, glow voltage, injection stages, pump ratio and oil-pan details illustrative or remove the claims. Qualify seven holes as 2006. D11 default retains the brief's injector wording only with the source disagreement clearly stated, rather than presenting it as undisputed. LBZ copy already limits supported claims. Log intended visible differences; unchanged mechanical/numeric baselines must keep passing. Original six-view comparison will legitimately differ after visible copy/chair edits; do not weaken tolerances to accept them.
+
+6.2: retain only __ENGINE__; migrate every consumer including capture-browser.mjs and browser/Node tests by hook-name-only substitution. Review/hash the exact capture-helper diff; update cloud comparison instructions to its actual new hash with the unchanged original reference hash. Preserve all capture scenarios, assertions, thresholds and renderer rules. Remove unused ENGINE_SPEC_SUMMARY/INSPECTABLE_IDS/HEAD_TOP/ROCKER_Y after checking imports; update QA recipe.
+
+6.3: update README engines/current behavior/files/commands and add a researched-entry guide. No unsupported completion or hardware claims.
+
+6.4: remove only tracked archive/ contents after proving no source/test imports and no untracked user files there. Keep deletion unstaged, preserving current working-tree workflow and Git history.
+
+6.5: add scripts/check-dist.mjs + check:dist npm script; scan all emitted files for fixture ID/markers, require a distinct lazy entry chunk for every production engine, and fail on missing output. Validate on actual build and temporary deliberately invalid output without altering existing test assertions.
+
+6.6: chair proposal: local console coordinates change from (-0.9,0,0.55) to (-0.2,0,0.8). Compute world position via existing -0.52 rad rotation; prove its 0.31 m envelope clears the engine walk circle and dyno guard before applying. Broad approval covers this reversible design choice. Update the footprint and remove only the planned chair-overlap exemption; keep containment assertions. Rebaseline only the expressly authorized Phase 6 supplemental workflow, with the original reference preserved and a new separately named reference. Any runner extension must be explicit, retain default clean-source capture/non-overwrite guards, record actual dirty-source provenance, and keep original renderer/pixel/numeric guards. Original Windows re-capture cannot be claimed on software hardware.
+
+6.8: D9 default approved: catch pointer-lock promise rejection at the two existing call sites, without changing movement/input behavior. Browser-check rejection handling.
+
+6.7: full Node/check/build/check:dist/browser, exact mechanical baseline, new independent supplemental reference repeatability comparison, chair footprint no exemption, archive/import scans and documentation links. Document old/new baseline provenance and intended pixel differences. Original Windows capture/visual/manual/audio/visible FPS and final human review remain clearly outstanding. Update handoff/design/MVP/build log; do not merge or publish.
+
+Completed implementation/automated cloud checks: 6.1 copy corrections; 6.2 sole hook/unused export cleanup; 6.3 README/entry guide; 6.4 verified archive removal; 6.5 dist guards; 6.6 chair/exemption removal and separately preserved Phase-6 baseline; 6.8 rejection handling; 6.7 all 247 Node tests/static/build/dist/four browser modules and independent exact six-view comparison. New reference .qa/cloud/reference-phase6; comparison .qa/cloud/run-1794176141888-12227/comparison.json. Numeric fixture differs at one approved label string only. Original Windows/manual/audio/FPS review and any Git/release action remain outstanding. No staging/commit/tag/push/merge/publication.

@@ -1,6 +1,6 @@
 # Engine library: refactor plan (v3)
 
-Version 3, 2026-10-29. Version 2 folded in the feasibility review. Version 3 applies the research in [research/README.md](research/README.md). Engine values are sourced there, and nobody signs off on values. The agent's rules and packages are in [agent-runbook.md](agent-runbook.md). "Q7" and similar refer to the 68-question planning list. That list is not in the repo, so section 3 states each decision in full and the build does not need it. Status (2026-11-05): Phases 0 to 2 are done and gated (tags `phase-0-done`, `phase-1-done`, `phase-2-done`). Phase 3 is in progress. Sections 2 and 8 describe 2026-10-29 unless marked otherwise. The current state is in [handoff.md](handoff.md). The executable plan to the MVP is [mvp-plan.md](mvp-plan.md).
+Version 3, 2026-10-29. Version 2 folded in the feasibility review. Version 3 applies the research in [research/README.md](research/README.md). Engine values are sourced there, and nobody signs off on values. The agent's rules and packages are in [agent-runbook.md](agent-runbook.md). "Q7" and similar refer to the 68-question planning list. That list is not in the repo, so section 3 states each decision in full and the build does not need it. Status (2026-11-08): Phases 0–2 remain gated/tagged. Phases 3, 4 and 6 implementation and automated cloud acceptance pass; Windows baseline/FPS/picker confirmation and final human release acceptance supplied; push/merge is now authorized. Sections 2 and 8 describe 2026-10-29 unless marked otherwise. The current state is in [handoff.md](handoff.md). The executable plan to the MVP is [mvp-plan.md](mvp-plan.md).
 
 ## 1. Goal
 
@@ -303,17 +303,17 @@ The audio frame carries every field its `update()` reads. The review found that 
 
 Sizes are relative (S, M, L, XL). The commands for each phase are in the runbook.
 
-**Status at 2026-11-05.**
+**Status at 2026-11-06.**
 
 | Phase | Status |
 | --- | --- |
 | 0 | Done (`phase-0-done`) |
 | 1 | Done (`phase-1-done`) |
 | 2 | Done (`phase-2-done`). The family and kinematics still read the LLY module; that is Phase 3 work (decision D2). |
-| 3 | In progress. 3.1, 3.2a and 3.2b are done (checkpoint `e13290b`). The package is split into 3.3a to 3.3d (`docs/mvp-plan.md`, section 4.1). |
-| 4 | Not started. Decisions D4 to D6 come first. |
+| 3 | Implementation and automated cloud acceptance complete: runtime swap, ownership walk, twenty-swap GPU checks, prop footprints/collision. Final human gate accepted for release. |
+| 4 | LBZ implementation and automated cloud acceptance complete; D4–D6 adopted with source/design limitations recorded. |
 | 5 | Post-MVP (cut). |
-| 6 | Not started. |
+| 6 | Implementation complete; independent Phase-6 supplemental comparison passes exactly. Final human acceptance/push/merge requested. |
 
 The MVP is Phases 0 to 4 and 6 (decision D1, to be confirmed by the human).
 
@@ -362,7 +362,7 @@ Deliverables:
 - The `cell.js` and `stand.js` split, and `cell.setBranding`.
 - `main.js` holds a mutable engine reference. `switchEngine` follows section 7.
 - The test-only LLY copy (stroke unchanged), registered only in test mode.
-- The resource tracker and the disposal rules (section 7).
+- The ownership walk and disposal rules (section 7), per adopted D7.
 - The browser swap test, `tests/browser/swap.browser.mjs`.
 - Prop footprints and their Node test. The console chair is exempt by name until Phase 6 (open decision 2).
 
@@ -418,7 +418,7 @@ Exit: every check passes. QA runs on all three entries. The human approves the m
 
 Resource rules:
 
-- Geometry, label textures, sprites, stand textures and cloned materials created by a build belong to that build and are disposed with it. The resource tracker is passed into the builders.
+- Geometry, label textures, sprites, stand textures and cloned materials created by a build belong to that build and are disposed with it. D7 uses an ownership walk over each build’s roots, excluding shared materials/textures; disposal is idempotent.
 - Materials and textures from `createMaterials()` are shared library assets. No model disposes them.
 - The check is `renderer.info.memory` (geometries and textures). The baseline is taken after the first round trip, with cutaway and explode rendered, nothing selected, and a fixed window size.
 
@@ -495,6 +495,10 @@ Resource rules:
 
 ## 11. Open decisions
 
+D2 default adopted (2026-11-06, approved 3.3a task): address the remaining LLY family/kinematics coupling in Phase 3 packages 3.3a and 3.3b, retaining the approved Phase 2 gate. No engine value or phase gate was changed by this decision. D1 remains at its documented status/default.
+
+Cloud validation decision D15 (approved 2026-11-06): add a separate Linux/Chrome/software-rendering regression reference captured before application changes. Preserve original Windows baselines and acceptance. Exact scope, provenance and commands are in [cloud-validation.md](cloud-validation.md). This is validation infrastructure, with no engine values or application behavior changes.
+
 These are the decisions that were, or still are, with you. Values are not on this list, because the research decides them.
 
 1. **Injector wording in the copy.** The brief says "piezoelectric". The research favours solenoid for the LLY and the LBZ (see [research/lly.md](research/lly.md) section 6). Keep the brief's wording, or change it in Phase 6. This is a wording decision, not a value.
@@ -529,3 +533,7 @@ Decided by the research, with no sign-off needed:
 - The `lly_report.md` file stays at the root.
 - Copy corrections from the research are a Phase 6 package, followed by a baseline re-capture.
 - The earlier changes from version 1 still apply: repeatable captures, the rail arithmetic, the Phase 3 copy with the same stroke, the steady-state threshold at 2,200 rpm, the corrected name check, the test migration, the swap resets, the Node checks and the agent-neutral conventions.
+
+## Execution decisions, 2026-11-08
+
+The human authorized remaining development with all approvals given. D7 ownership walk is implemented and passes real Chrome memory checks. D4–D6 defaults are adopted for LBZ: rod length 163.0 mm (S13/S14 family listings, medium confidence); unmeasured valve timing/lift retained as design; behavior/look/curves/UI inherited or adapted as design. These are recorded exceptions to missing-value rule 7, not new research. Original Windows/manual acceptance remains outstanding.

@@ -1,5 +1,3 @@
-import { entry } from './engines/active.js';
-
 // Where the camera may go. Plain functions on {x, z} / {x, y, z} data, with no Three.js and no DOM,
 // so the same code runs in the browser and in the Node tests.
 
@@ -10,15 +8,11 @@ const EPS = 1e-9;
 --------------------------------------------------------------------------- */
 
 // Distance kept between the walker and each obstacle (the walker itself is a point).
-const WALL_CLEARANCE = entry.walk.wallClearanceM;
-const DYNO_CLEARANCE = entry.walk.dynoClearanceM;
-const ENGINE_WALK_RADIUS = entry.walk.clearanceRadiusM;
 // Control console and tool chest: solid from the console face to the east wall.
 const CONSOLE_BLOCK = { minX: 1.25, maxX: Infinity, minZ: -1.75, maxZ: 0.8 };
 
 // A step is walked in hops no longer than this, so a long frame can't carry the walker through an
 // obstacle (every obstacle is far thicker than a hop).
-const MAX_HOP = entry.walk.maxHopM;
 // Where an engine disc and a box meet the walker is pushed back and forth between them; this many
 // rounds settle it to well under a millimetre.
 const PASSES = 12;
@@ -32,15 +26,24 @@ const SETTLE = 1e-3;
  * `collision` is the environment's collision data (Box3-shaped room and dynoBox); `engineCenter` is
  * { x, z }.
  */
-export function buildWalkWorld({ room, dynoBox }, engineCenter) {
+export function buildWalkWorld({ room, dynoBox, footprints = [] }, engineCenter, entry) {
+  const WALL_CLEARANCE = entry.walk.wallClearanceM;
+  const DYNO_CLEARANCE = entry.walk.dynoClearanceM;
+  const ENGINE_WALK_RADIUS = entry.walk.clearanceRadiusM;
+  // New narrow props invalidate the old assumption that every obstacle is much
+  // thicker than a hop. Never cross the centre of a disc or jump over a box.
+  const propHop = footprints.map(prop => prop.shape === 'circle'
+    ? prop.radius / 2 : Math.min(prop.maxX - prop.minX, prop.maxZ - prop.minZ) / 2);
   return {
+    maxHop: Math.min(entry.walk.maxHopM, ...propHop),
     bounds: {
       minX: room.min.x + WALL_CLEARANCE,
       maxX: room.max.x - WALL_CLEARANCE,
       minZ: room.min.z + WALL_CLEARANCE,
       maxZ: room.max.z - WALL_CLEARANCE,
     },
-    circles: [{ x: engineCenter.x, z: engineCenter.z, radius: ENGINE_WALK_RADIUS }],
+    circles: [{ x: engineCenter.x, z: engineCenter.z, radius: ENGINE_WALK_RADIUS },
+      ...footprints.filter(prop => prop.shape === 'circle').map(prop => ({ ...prop }))],
     boxes: [
       {
         minX: dynoBox.min.x - DYNO_CLEARANCE,
@@ -49,6 +52,7 @@ export function buildWalkWorld({ room, dynoBox }, engineCenter) {
         maxZ: dynoBox.max.z + DYNO_CLEARANCE,
       },
       CONSOLE_BLOCK,
+      ...footprints.filter(prop => prop.shape === 'box').map(prop => ({ ...prop })),
     ],
   };
 }
@@ -128,7 +132,7 @@ function hop(from, to, world) {
 export function resolveWalk(from, to, world) {
   const dx = to.x - from.x;
   const dz = to.z - from.z;
-  const hops = Math.max(1, Math.ceil(Math.hypot(dx, dz) / MAX_HOP));
+  const hops = Math.max(1, Math.ceil(Math.hypot(dx, dz) / world.maxHop));
   let at = { x: from.x, z: from.z };
   // Each hop starts from where the last one ended, not from the planned line: after a slide the two differ.
   for (let i = 0; i < hops; i++) {

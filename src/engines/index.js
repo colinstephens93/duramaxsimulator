@@ -1,11 +1,17 @@
 import { validateEntry } from './schema.js';
 
-export const ENGINE_IDS = ['lly'];
+export const ENGINE_IDS = ['lly', 'lbz'];
 export const DEFAULT_ENGINE_ID = 'lly';
 
 const LOADERS = {
   lly: () => import('./lly/index.js'),
+  lbz: () => import('./lbz/index.js'),
 };
+
+if (import.meta.env?.MODE === 'test') {
+  ENGINE_IDS.push('lly-copy');
+  LOADERS['lly-copy'] = () => import('../../tests/fixtures/engines/lly-copy/index.js');
+}
 
 const FAMILY_LOADERS = {
   'v8-ohv': () => import('./families/v8-ohv.js'),
@@ -70,6 +76,5 @@ export function installQaHook(target, hook) {
     throw new TypeError('target must be an object');
   }
   target.__ENGINE__ = hook;
-  target.__LLY__ = hook;
   return hook;
 }

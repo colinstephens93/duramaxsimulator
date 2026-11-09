@@ -2,7 +2,8 @@
 // crank step main.js takes. Lets the per-cylinder pulse scheduling be tested without a browser.
 import { TestCellAudio } from '../../src/audio.js';
 import lly from '../../src/engines/lly/index.js';
-import { FIRING_ORDER } from '../../src/engines/families/v8-ohv-kinematics.js';
+import { kinematicsFor } from '../../src/engines/families/v8-ohv-kinematics.js';
+const { firingOrder: FIRING_ORDER, cylinders } = kinematicsFor(lly);
 import { mod } from '../../src/kinematics.js';
 
 const SLOW_MOTION_SCALE = 0.12; // the factor main.js and audio.js both apply in slow motion
@@ -110,6 +111,7 @@ export async function createAudio() {
     maxRpm: lly.ratings.redlineRpm,
     boostPeakPsi: lly.turbo.boostPeakPsi,
     ...lly.audio,
+    cylinders,
   });
   audio.enabled = true;
   await audio.unlock();

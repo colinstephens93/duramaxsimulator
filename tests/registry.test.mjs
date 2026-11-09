@@ -9,17 +9,15 @@ import {
   parseEngineParam,
 } from '../src/engines/index.js';
 import { FAMILY_IDS, REQUIRED_KEYS, validateEntry } from '../src/engines/schema.js';
-import {
-  CYLINDERS,
-  FIRING_ORDER,
-  VALVE_TIMING,
-  pistonKinematics,
-  valveLift,
-} from '../src/engines/families/v8-ohv-kinematics.js';
+import { kinematicsFor } from '../src/engines/families/v8-ohv-kinematics.js';
+const kinematics = kinematicsFor(lly);
+const { cylinders: CYLINDERS, firingOrder: FIRING_ORDER, valveTiming: VALVE_TIMING, pistonKinematics, valveLift } = kinematics;
 import { PART_IDS } from '../src/engines/families/v8-ohv.js';
 import { camshaftAngleDeg } from '../src/kinematics.js';
 import { telemetryValues } from '../src/core/telemetry.js';
-import { getSpec } from '../src/specs.js';
+import { getSpec as readSpec } from '../src/specs.js';
+const specContext = { entry: lly, copy: await lly.copy() };
+const getSpec = id => readSpec(id, specContext);
 
 const near = (actual, expected, tolerance, what) =>
   assert.ok(Math.abs(actual - expected) <= tolerance, `${what}: ${actual} is not within ${tolerance} of ${expected}`);
@@ -36,7 +34,7 @@ const cloneEntry = () => clone(lly);
 
 describe('registry and schema', () => {
   it('lists LLY and loads every registered id', async () => {
-    assert.deepEqual(ENGINE_IDS, ['lly']);
+    assert.deepEqual(ENGINE_IDS, ['lly', 'lbz']);
     for (const id of ENGINE_IDS) {
       const loaded = await loadEngine(id);
       assert.equal(loaded.id, id);
@@ -95,7 +93,7 @@ describe('registry and schema', () => {
     assert.deepEqual(parseEngineParam(undefined), { id: DEFAULT_ENGINE_ID, requested: null, fallback: false });
     assert.deepEqual(parseEngineParam('?engine='), { id: DEFAULT_ENGINE_ID, requested: null, fallback: false });
     assert.deepEqual(parseEngineParam('?engine=lly'), { id: 'lly', requested: 'lly', fallback: false });
-    assert.deepEqual(parseEngineParam('?engine=lbz'), { id: DEFAULT_ENGINE_ID, requested: 'lbz', fallback: true });
+    assert.deepEqual(parseEngineParam('?engine=lbz'), { id: 'lbz', requested: 'lbz', fallback: false });
     assert.deepEqual(parseEngineParam('?engine=LLY'), { id: DEFAULT_ENGINE_ID, requested: 'LLY', fallback: true });
   });
 
@@ -112,12 +110,12 @@ describe('registry and schema', () => {
     await assert.rejects(() => loadEngine('nope'), RangeError);
   });
 
-  it('installs both QA names to the same hook', () => {
+  it('installs the current QA name without the legacy alias', () => {
     const hook = { engine: 'test' };
     const target = {};
     assert.equal(installQaHook(target, hook), hook);
     assert.equal(target.__ENGINE__, hook);
-    assert.equal(target.__LLY__, hook);
+    assert.equal(Object.hasOwn(target, '__LLY__'), false);
   });
 });
 
@@ -196,8 +194,11 @@ describe('LLY physics', () => {
     assert.ok(lly.walk.clearanceRadiusM > 0);
   });
 
-  it('resolves spec copy for every part id', () => {
-    const missing = PART_IDS.filter((id) => !getSpec(id));
-    assert.deepEqual(missing, [], `missing spec copy: ${missing.join(', ')}`);
+  it('resolves spec copy for every part id in every registered engine', async () => {
+    for (const id of ENGINE_IDS) {
+      const current = await loadEngine(id);
+      const missing = current.family.PART_IDS.filter(part => !readSpec(part, current));
+      assert.deepEqual(missing, [], `${id}: missing spec copy: ${missing.join(', ')}`);
+    }
   });
 });

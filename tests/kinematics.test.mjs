@@ -3,16 +3,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DEG, camshaftAngleDeg, mod } from '../src/kinematics.js';
-import {
-  CALIBRATIONS,
-  CYLINDERS,
-  FIRING_ORDER,
-  LLY,
-  VALVE_TIMING,
-  cylinderState,
-  pistonKinematics,
-  valveLift,
-} from '../src/engines/families/v8-ohv-kinematics.js';
+import { kinematicsFor } from '../src/engines/families/v8-ohv-kinematics.js';
+const kinematics = kinematicsFor(lly);
+const { calibrations: CALIBRATIONS, cylinders: CYLINDERS, firingOrder: FIRING_ORDER, spec: LLY, valveTiming: VALVE_TIMING, cylinderState, pistonKinematics, valveLift } = kinematics;
 import lly from '../src/engines/lly/index.js';
 import {
   horsepowerAtRpm,
@@ -95,7 +88,7 @@ describe('valve timing', () => {
 describe('cam-driven valve rows (the geometry the engine animates)', () => {
   // The real lobe phasing from EngineBuilder, called with a stand-in `this` because building the
   // engine itself needs a browser.
-  const rows = EngineBuilder.prototype._prepareValveRows.call({});
+  const rows = EngineBuilder.prototype._prepareValveRows.call({ kinematics });
   const TAU = Math.PI * 2;
 
   // Mirrors the lobe-contact lift in EngineBuilder.update().

@@ -1,26 +1,22 @@
-import { CYLINDER_BY_NUMBER } from './engines/families/v8-ohv-kinematics.js';
-import { entry, COMPONENT_CARDS, pistonCard, rodCard, engineSummary } from './engines/active.js';
-
-const specsByNumber = {};
-for (const c of CYLINDER_BY_NUMBER.values()) {
-  specsByNumber[`piston-${c.number}`] = pistonCard(c.number, c.bankLabel);
-  specsByNumber[`rod-${c.number}`] = rodCard(c.number, c.bankLabel);
-}
-
-export const COMPONENT_SPECS = { ...COMPONENT_CARDS, ...specsByNumber };
-
-export function getSpec(id, cylinderNumber = null) {
-  if (!id) return null;
-  let spec = COMPONENT_SPECS[id];
-  if (!spec && id.startsWith('piston-')) spec = specsByNumber[id];
-  if (!spec && id.startsWith('rod-')) spec = specsByNumber[id];
-  if (!spec && id === 'cylinder-head-right') spec = COMPONENT_SPECS['cylinder-head-right'];
-  if (spec && spec.specs) {
-    // A little dynamic accuracy for the two compression ratios.
-    spec = { ...spec, specs: spec.specs.map(([k, v]) => [k, v]) };
+export function COMPONENT_SPECS({ entry, copy }) {
+  const specs = { ...copy.COMPONENT_CARDS };
+  for (const cylinder of entry.layout.cylinders) {
+    const bank = entry.layout.banks.find(bank => bank.id === cylinder.bank);
+    specs['piston-' + cylinder.number] = copy.pistonCard(cylinder.number, bank.label);
+    specs['rod-' + cylinder.number] = copy.rodCard(cylinder.number, bank.label);
   }
-  return spec;
+  return specs;
 }
 
-export const INSPECTABLE_IDS = Object.keys(COMPONENT_SPECS);
-export const ENGINE_SPEC_SUMMARY = engineSummary(entry.layout.firingOrder.join('-'));
+export function getSpec(id, current) {
+  if (!id) return null;
+  const { entry, copy } = current;
+  let spec = copy.COMPONENT_CARDS[id];
+  const cylinder = entry.layout.cylinders.find(c => id === 'piston-' + c.number || id === 'rod-' + c.number);
+  if (cylinder) {
+    const bank = entry.layout.banks.find(bank => bank.id === cylinder.bank);
+    spec = id.startsWith('piston-') ? copy.pistonCard(cylinder.number, bank.label) : copy.rodCard(cylinder.number, bank.label);
+  }
+  if (spec?.specs) spec = { ...spec, specs: spec.specs.map(([key, value]) => [key, value]) };
+  return spec ?? null;
+}

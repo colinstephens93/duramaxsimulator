@@ -1,4 +1,30 @@
 import * as THREE from 'three';
+
+// Floor-obstacle envelopes in cell metres. Only geometry below walking head height
+// counts; overhead lamp arms, floor cables and stand-mounted tools are not props.
+const circle = (id, x, z, radius) => ({ id, shape: 'circle', x, z, radius });
+function footprintBox(id, x, z, halfX, halfZ, angle = 0) {
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const dx = Math.abs(c) * halfX + Math.abs(s) * halfZ;
+  const dz = Math.abs(s) * halfX + Math.abs(c) * halfZ;
+  return { id, shape: 'box', minX: x - dx, maxX: x + dx, minZ: z - dz, maxZ: z + dz };
+}
+const chairX = 2.16 + Math.cos(-0.52) * -0.2 + Math.sin(-0.52) * 0.8;
+const chairZ = -0.45 - Math.sin(-0.52) * -0.2 + Math.cos(-0.52) * 0.8;
+export const PROP_FOOTPRINTS = Object.freeze([
+  circle('work-lamp', -2, 1.7, 0.075),
+  footprintBox('console', 2.16, -0.45, 0.47, 0.35, -0.52),
+  circle('console-chair', chairX, chairZ, 0.31),
+  footprintBox('tool-chest', 2.82, 1.16, 0.4, 0.28, -0.12),
+  circle('stool', -2.35, 1.18, 0.312),
+  circle('drum-0', -4.55, -3.6, 0.29),
+  circle('drum-1', -3.9, -3.5, 0.29),
+  circle('drum-2', -4.35, -2.85, 0.29),
+  circle('extinguisher', 4.94, -3.7, 0.17),
+  footprintBox('cone-0', -2.1, -2.15, 0.14, 0.14),
+  footprintBox('cone-1', 2.5, -2.38, 0.14, 0.14),
+  footprintBox('bench', 4.6, 1.8, 1, 0.325, Math.PI / 2),
+].map(Object.freeze));
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import {
   addBoltAt,
@@ -9,7 +35,6 @@ import {
   cylinderBetween,
   decal,
   makeConcreteTextures,
-  makeHazardTexture,
   makeLabelTexture,
   makeRadialTexture,
   mergeStaticMeshes,
@@ -18,7 +43,6 @@ import {
   torus,
   tube,
 } from '../utils.js';
-import { buildStand, makeStandBadgeTexture } from './stand.js';
 
 const TAU = Math.PI * 2;
 
@@ -28,8 +52,6 @@ const NEUTRAL_BRANDING = {
   signSub: 'ENGINE TEST CELL',
   consoleHeader: 'TEST CELL 04',
   consoleFooter: 'TEST CELL',
-  standMain: 'DYNO',
-  standSub: 'HEAVY DUTY DYNO BEDPLATE',
 };
 
 const NEUTRAL_GAUGE = { torque: 1, boost: 1, rail: 1 };
@@ -98,26 +120,6 @@ function boxTube(parent, w, h, d, material, position, opts = {}) {
   });
   parent.add(m);
   return m;
-}
-
-function iBeam(group, length, height, material, position, rotation = [0, 0, 0], axis = 'z') {
-  const g = new THREE.Group();
-  g.position.set(...position);
-  g.rotation.set(...rotation);
-  const webT = 0.024;
-  const flangeT = 0.028;
-  const width = 0.15;
-  if (axis === 'z') {
-    g.add(box(webT, height, length, material, { position: [0, 0, 0], castShadow: true, receiveShadow: true }));
-    g.add(box(width, flangeT, length, material, { position: [0, height / 2 - flangeT / 2, 0] }));
-    g.add(box(width, flangeT, length, material, { position: [0, -height / 2 + flangeT / 2, 0] }));
-  } else {
-    g.add(box(length, height, webT, material, { position: [0, 0, 0], castShadow: true, receiveShadow: true }));
-    g.add(box(length, flangeT, width, material, { position: [0, height / 2 - flangeT / 2, 0] }));
-    g.add(box(length, flangeT, width, material, { position: [0, -height / 2 + flangeT / 2, 0] }));
-  }
-  group.add(g);
-  return g;
 }
 
 function makeEnvMap(renderer) {
@@ -200,21 +202,18 @@ export function buildCeilingFixture(housingMat, lensMat) {
   return fixture;
 }
 
-export function buildEnvironment(scene, renderer, materials, entry) {
+export function buildEnvironment(scene, renderer, materials, entry, attach = () => {}) {
   RectAreaLightUniformsLib.init();
   const m = materials;
   const root = new THREE.Group();
   root.name = 'Test Cell';
   scene.add(root);
   const interactives = new Map();
-  const register = (id, obj) => {
-    if (!interactives.has(id)) interactives.set(id, []);
-    interactives.get(id).push(obj);
-  };
+  const propGroups = new Map();
   const animated = { monitors: [], beacons: [], fans: [] };
   let branding = brandingFromEntry(entry);
   let gaugeFullScale = gaugeFromEntry(entry);
-  let redlineRpm = entry?.ratings?.redlineRpm ?? 1;
+  let redlineRpm = entry.ratings.redlineRpm;
   const envMap = makeEnvMap(renderer);
   scene.environment = envMap;
   scene.environmentIntensity = 0.58;
@@ -261,9 +260,6 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   const neon = new THREE.MeshBasicMaterial({ color: 0xffb45f });
   const coolNeon = new THREE.MeshBasicMaterial({ color: 0x85c5c8 });
   const red = m.red;
-  const steel = m.standSteel;
-  const yellow = m.standYellow;
-  const rubber = m.rubber;
   const black = m.wrinkleBlack;
   const aluminum = m.machinedAluminum;
 
@@ -709,6 +705,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
 
   // Practical overhead work lamp on a trailing arm.
   const workLampPost = new THREE.Group();
+  propGroups.set('work-lamp', workLampPost);
   workLampPost.position.set(-2.0, 0, 1.7);
   root.add(workLampPost);
   workLampPost.add(
@@ -768,24 +765,13 @@ export function buildEnvironment(scene, renderer, materials, entry) {
     root.add(p);
   }
 
-  const { stand, dyno, badge } = buildStand({
-    root,
-    register,
-    m,
-    TAU,
-    addGroup,
-    iBeam,
-    steel,
-    yellow,
-    rubber,
-    black,
-    red,
-    branding,
-  });
+  // The caller attaches engine-specific assemblies here to preserve seeded allocation order.
+  attach(root);
   // -----------------------------------------------------------------------
   // Control console
   // -----------------------------------------------------------------------
   const consoleGroup = addGroup(root);
+  propGroups.set('console', consoleGroup);
   consoleGroup.position.set(2.16, 0, -0.45);
   consoleGroup.rotation.y = -0.52;
   root.add(consoleGroup);
@@ -925,10 +911,9 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   const setBranding = (nextEntry) => {
     const nextBranding = brandingFromEntry(nextEntry);
     const nextGauge = gaugeFromEntry(nextEntry);
-    const nextRedline = nextEntry?.ratings?.redlineRpm ?? 1;
+    const nextRedline = nextEntry.ratings.redlineRpm;
     const nextFloor = makeFloorTexture(nextBranding);
     const nextSign = makeSignTexture(nextBranding);
-    const nextBadge = makeStandBadgeTexture(nextBranding.standMain, nextBranding.standSub);
 
     floorDecal.material.map?.dispose();
     floorDecal.material.map = nextFloor;
@@ -937,9 +922,6 @@ export function buildEnvironment(scene, renderer, materials, entry) {
     signMat.map = nextSign;
     signMat.emissiveMap = nextSign;
     signMat.needsUpdate = true;
-    badge.map?.dispose();
-    badge.map = nextBadge;
-    badge.needsUpdate = true;
 
     branding = nextBranding;
     gaugeFullScale = nextGauge;
@@ -987,7 +969,8 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   estop.add(estopTop);
   // console chair
   const chair = addGroup(consoleGroup);
-  chair.position.set(-0.9, 0, 0.55);
+  propGroups.set('console-chair', chair);
+  chair.position.set(-0.2, 0, 0.8);
   chair.add(
     roundedBox(0.37, 0.06, 0.35, 0.05, m.rubber, {
       position: [0, 0.5, 0],
@@ -1023,6 +1006,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   // -----------------------------------------------------------------------
   // Wheeled tool chest.
   const toolChest = new THREE.Group();
+  propGroups.set('tool-chest', toolChest);
   toolChest.position.set(2.82, 0, 1.16);
   toolChest.rotation.y = -0.12;
   root.add(toolChest);
@@ -1068,6 +1052,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   }
   // Stool.
   const stool = new THREE.Group();
+  propGroups.set('stool', stool);
   stool.position.set(-2.35, 0, 1.18);
   root.add(stool);
   stool.add(
@@ -1103,6 +1088,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   ]) {
     const drumMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.58, metalness: 0.5 });
     const drum = new THREE.Group();
+    propGroups.set(`drum-${[...propGroups.keys()].filter(id => id.startsWith('drum-')).length}`, drum);
     drum.position.set(x, 0, z);
     root.add(drum);
     drum.add(
@@ -1139,6 +1125,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   }
   // Fire extinguisher on the wall.
   const extinguisher = new THREE.Group();
+  propGroups.set('extinguisher', extinguisher);
   extinguisher.position.set(4.9, 0, -3.7);
   root.add(extinguisher);
   extinguisher.add(
@@ -1208,6 +1195,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
     [2.5, -2.38],
   ]) {
     const cone = new THREE.Group();
+    propGroups.set(`cone-${[...propGroups.keys()].filter(id => id.startsWith('cone-')).length}`, cone);
     cone.position.set(x, 0, z);
     root.add(cone);
     cone.add(
@@ -1253,6 +1241,7 @@ export function buildEnvironment(scene, renderer, materials, entry) {
 
   // A small parts shelf / inspection table in the background.
   const bench = new THREE.Group();
+  propGroups.set('bench', bench);
   bench.position.set(4.6, 0, 1.8);
   bench.rotation.y = Math.PI / 2;
   root.add(bench);
@@ -1320,14 +1309,37 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   root.add(dust);
 
   // -----------------------------------------------------------------------
-  // Static batch merging — keep the two selectable assemblies intact, but
-  // collapse the room, console, props and each assembly into material batches.
+  // Static batch merging for the cell. Caller-owned dynamic attachments are
+  // finalized by their owner after this merge, preserving the original allocation order.
   // -----------------------------------------------------------------------
-  stand.userData.dynamic = true;
-  dyno.userData.dynamic = true;
+  // Capture independent mesh bounds before merging removes the original meshes.
+  // Box3/Vector math creates no UUIDs and preserves the seeded construction stream.
+  root.updateWorldMatrix(true, true);
+  const propBounds = [...propGroups].map(([id, group]) => {
+    const bounds = new THREE.Box3();
+    const footprint = PROP_FOOTPRINTS.find(prop => prop.id === id);
+    let maxRadius = 0;
+    group.traverse(object => {
+      if (!object.isMesh) return;
+      if (id === 'console') {
+        for (let parent = object; parent; parent = parent.parent) if (parent === chair) return;
+      }
+      object.geometry.computeBoundingBox();
+      const box = object.geometry.boundingBox.clone().applyMatrix4(object.matrixWorld);
+      if (box.min.y < 1.66 && box.max.y > 0.02) {
+        bounds.union(box);
+        if (footprint.shape === 'circle') {
+          const vertex = new THREE.Vector3(), positions = object.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            vertex.fromBufferAttribute(positions, i).applyMatrix4(object.matrixWorld);
+            if (vertex.y <= 1.66) maxRadius = Math.max(maxRadius, Math.hypot(vertex.x - footprint.x, vertex.z - footprint.z));
+          }
+        }
+      }
+    });
+    return { id, minX: bounds.min.x, maxX: bounds.max.x, minZ: bounds.min.z, maxZ: bounds.max.z, maxRadius };
+  });
   mergeStaticMeshes(root);
-  mergeStaticMeshes(stand);
-  mergeStaticMeshes(dyno);
 
   // -----------------------------------------------------------------------
   // Animated details
@@ -1355,10 +1367,10 @@ export function buildEnvironment(scene, renderer, materials, entry) {
   return {
     root,
     interactives,
+    propBounds,
     update,
     collision: {
-      centerRadius: 1.25,
-      dynoBox: new THREE.Box3(new THREE.Vector3(-0.8, 0, -2.3), new THREE.Vector3(0.8, 1.5, -1.05)),
+      footprints: PROP_FOOTPRINTS,
       room: new THREE.Box3(new THREE.Vector3(-5.4, 0.1, -4.6), new THREE.Vector3(5.4, 3.9, 4.6)),
       // Where the orbit camera may be: inside the walls and under the ceiling lights (their lowest face is 3.83 m).
       orbitBox: new THREE.Box3(new THREE.Vector3(-5.4, 0.25, -4.6), new THREE.Vector3(5.4, 3.6, 4.6)),

@@ -20,36 +20,19 @@ import {
   torus,
   addBoltAt,
 } from '../../utils.js';
-import lly from '../lly/index.js';
-import {
-  BANK_Z_OFFSET,
-  CYLINDERS,
-  CYLINDER_BY_NUMBER,
-  CRANK_REFERENCE_DEG,
-  LLY,
-  STATION_THROW_OFFSET,
-  STATION_Z,
-  VALVE_TIMING,
-  cylinderState,
-} from './v8-ohv-kinematics.js';
+import { kinematicsFor } from './v8-ohv-kinematics.js';
 import { DEG, camshaftAngleDeg, mod, wrapSignedDeg } from '../../kinematics.js';
-import { vaneAtRpm } from '../../core/telemetry.js';
+import { telemetryValues, vaneAtRpm } from '../../core/telemetry.js';
+import { createResourceDisposer } from '../../core/resources.js';
 
 const TAU = Math.PI * 2;
 const DECK_Y = 306;
-const HEAD_TOP = 402;
-const ROCKER_Y = 454;
 const VALVE_TIP_Y = 443;
 const CAM_Y = 150;
 const CAM_BASE_RADIUS = 23.5;
 const ROLLER_RADIUS = 9.5;
 const LOBE_LIFT = 8.0;
-const INTAKE_DURATION_CAM = VALVE_TIMING.intake.duration / 2;
-const EXHAUST_DURATION_CAM = VALVE_TIMING.exhaust.duration / 2;
 const MAIN_JOURNAL_Z = [277, 131, 0, -131, -277];
-// The exploded view also fades the castings, by this fraction of a full cutaway, so the crank, rods and
-// pistons stay legible inside the block.
-const EXPLODE_CUTAWAY_FRACTION = lly.explode.cutawayFraction;
 // Past this much fade (opacity about 0.67) clicks go through the castings to the parts inside.
 const XRAY_PICK_THRESHOLD = 0.35;
 
@@ -62,10 +45,12 @@ function labelLines(lines, opts) {
 }
 
 export class EngineBuilder {
-  constructor(materials) {
+  constructor(materials, entry) {
+    this.entry = entry;
+    this.kinematics = kinematicsFor(entry);
     this.m = materials;
     this.root = new THREE.Group();
-    this.root.name = lly.identity.sceneName;
+    this.root.name = entry.identity.sceneName;
     this.parts = new Map();
     this.assemblies = new Map();
     this.explodeGroups = [];
@@ -98,23 +83,23 @@ export class EngineBuilder {
   _buildMaterials() {
     const m = this.m;
     const block = m.castIronBlock.clone();
-    block.color.setHex(lly.look.palette.block);
+    block.color.setHex(this.entry.look.palette.block);
     block.name = 'cutaway-block';
     const blockDark = m.castIronBlockDark.clone();
-    blockDark.color.setHex(lly.look.palette.blockDark);
+    blockDark.color.setHex(this.entry.look.palette.blockDark);
     blockDark.name = 'cutaway-block-dark';
     const head = m.castAluminumHead.clone();
-    head.color.setHex(lly.look.palette.head);
+    head.color.setHex(this.entry.look.palette.head);
     head.name = 'cutaway-head';
     const cover = m.castAluminumHead.clone();
-    cover.color.setHex(lly.look.palette.cover);
+    cover.color.setHex(this.entry.look.palette.cover);
     cover.roughness = 0.76;
     cover.metalness = 0.04;
     cover.envMapIntensity = 0.32;
     cover.bumpScale = 1.1;
     cover.name = 'cutaway-cover';
     const liner = m.nitridedSteel.clone();
-    liner.color.setHex(lly.look.palette.liner);
+    liner.color.setHex(this.entry.look.palette.liner);
     liner.name = 'cutaway-liner';
 
     const defs = [
@@ -213,8 +198,8 @@ export class EngineBuilder {
       'pushrods',
       'rockers',
       'valve-bridges',
-      ...CYLINDERS.map((c) => `piston-${c.number}`),
-      ...CYLINDERS.map((c) => `rod-${c.number}`),
+      ...this.kinematics.cylinders.map((c) => `piston-${c.number}`),
+      ...this.kinematics.cylinders.map((c) => `rod-${c.number}`),
     ];
     this.internalGroups = [];
     for (const id of this.internalPartIds) {
@@ -247,6 +232,13 @@ export class EngineBuilder {
       o.castShadow = o.castShadow && !o.material?.transparent && !internal;
     });
     return this;
+  }
+
+  dispose() {
+    if (!this._disposeResources) this._disposeResources = createResourceDisposer([this.root], this.m);
+    this._disposeResources();
+    this.parts.clear();
+    this.assemblies.clear();
   }
 
   /* -----------------------------------------------------------------------
@@ -298,7 +290,7 @@ export class EngineBuilder {
     );
 
     // Two canted cylinder bank castings.
-    for (const c of [CYLINDERS[0], CYLINDERS[1]]) {
+    for (const c of [this.kinematics.cylinders[0], this.kinematics.cylinders[1]]) {
       const bank = new THREE.Group();
       bank.rotation.z = c.bankRotationDeg * DEG;
       block.add(bank);
@@ -401,7 +393,7 @@ export class EngineBuilder {
     const linerMat = m.linerShell;
     const gasketMat = m.copper;
     const boreMat = m.darkSteel;
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       const bankRoot = new THREE.Group();
       bankRoot.rotation.z = c.bankRotationDeg * DEG;
       block.add(bankRoot);
@@ -545,8 +537,8 @@ export class EngineBuilder {
     // Block identification / GM casting marks.
     const blockLabel = labelLines(
       [
-        lly.look.decals.block[0],
-        lly.look.decals.block[1],
+        this.entry.look.decals.block[0],
+        this.entry.look.decals.block[1],
       ],
       { width: 1024, height: 300, padding: 52, background: 'transparent' },
     );
@@ -556,8 +548,8 @@ export class EngineBuilder {
     plate.material.opacity = 0.7;
     const serial = makeLabelTexture(
       [
-        lly.look.decals.serialPlate[0],
-        lly.look.decals.serialPlate[1],
+        this.entry.look.decals.serialPlate[0],
+        this.entry.look.decals.serialPlate[1],
       ],
       { width: 640, height: 220, background: '#181a17', border: true, accent: '#9f8554', padding: 30 },
     );
@@ -578,7 +570,7 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _buildRotatingAssembly() {
     const m = this.mats;
-    const asm = this.makeAssembly('rotating', lly.explode.offsets.rotating);
+    const asm = this.makeAssembly('rotating', this.entry.explode.offsets.rotating);
     const crankPart = this.createPart(asm, 'crank');
     const spin = new THREE.Group();
     this.markDynamic(spin);
@@ -624,11 +616,11 @@ export class EngineBuilder {
     );
 
     // Four cross-plane throws, each with paired rod journals.
-    for (let i = 0; i < STATION_Z.length; i++) {
-      const c = CYLINDERS.find((cc) => cc.station === i);
-      const phase = (CRANK_REFERENCE_DEG - c.throwOffset) * DEG;
+    for (let i = 0; i < this.kinematics.stationZ.length; i++) {
+      const c = this.kinematics.cylinders.find((cc) => cc.station === i);
+      const phase = (this.kinematics.crankReferenceDeg - c.throwOffset) * DEG;
       const throwGroup = new THREE.Group();
-      throwGroup.position.z = STATION_Z[i];
+      throwGroup.position.z = this.kinematics.stationZ[i];
       throwGroup.rotation.z = phase;
       spin.add(throwGroup);
 
@@ -652,7 +644,7 @@ export class EngineBuilder {
       // Paired webs and profiled counterweights.
       for (const side of [-1, 1]) {
         const web = new THREE.Group();
-        web.position.z = STATION_Z[side > 0 ? 1 : 2];
+        web.position.z = this.kinematics.stationZ[side > 0 ? 1 : 2];
         const arm = roundedBox(153, 47, 25, 15, m.forgedSteel, {
           position: [-30, 0, 0],
           segments: 2,
@@ -671,7 +663,7 @@ export class EngineBuilder {
         const zWeb = side * 82;
         spin.add(
           roundedBox(138, 30, 22, 12, m.forgedSteel, {
-            position: [16, 0, STATION_Z[i] + zWeb],
+            position: [16, 0, this.kinematics.stationZ[i] + zWeb],
             rotation: [0, 0, phase],
             segments: 2,
           }),
@@ -737,7 +729,7 @@ export class EngineBuilder {
     );
     // TDC / timing scale
     const timing = labelLines(
-      [lly.look.decals.timingCover[0]],
+      [this.entry.look.decals.timingCover[0]],
       { width: 1024, height: 128, padding: 20 },
     );
     decal(damper, timing, 114, 14.2, [0, 85, 21.2], [0, 0, 0], { roughness: 0.7 });
@@ -801,7 +793,7 @@ export class EngineBuilder {
 
     // Pistons and fracture-split rods live with the rotating assembly so they
     // remain physically joined when the crank group is exploded.
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       const bankRoot = new THREE.Group();
       bankRoot.rotation.z = c.bankRotationDeg * DEG;
       asm.add(bankRoot);
@@ -1010,7 +1002,7 @@ export class EngineBuilder {
 
   _buildMainCaps() {
     const m = this.mats;
-    const asm = this.makeAssembly('main-caps', lly.explode.offsets['main-caps']);
+    const asm = this.makeAssembly('main-caps', this.entry.explode.offsets['main-caps']);
     const caps = this.createPart(asm, 'main-caps');
     for (let i = 0; i < MAIN_JOURNAL_Z.length; i++) {
       const z = MAIN_JOURNAL_Z[i];
@@ -1055,7 +1047,7 @@ export class EngineBuilder {
         }),
       );
       const capLabel = labelLines(
-        [{ ...lly.look.labelStyles.capNumeral, text: `MAIN 0${i + 1}` }],
+        [{ ...this.entry.look.labelStyles.capNumeral, text: `MAIN 0${i + 1}` }],
         { width: 512, height: 160, padding: 18 },
       );
       decal(cap, capLabel, 40, 12.5, [-22, -55, 27.2], [0, 0, 0], { roughness: 0.8 });
@@ -1067,10 +1059,11 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _prepareValveRows() {
     if (this.valveRows) return this.valveRows;
+    const kinematics = this.kinematics;
     const rows = [];
-    for (const c of CYLINDERS) {
+    for (const c of kinematics.cylinders) {
       for (const type of ['intake', 'exhaust']) {
-        const timing = VALVE_TIMING[type];
+        const timing = kinematics.valveTiming[type];
         const zRocker = c.z + (type === 'intake' ? -20 : 20);
         const halfWidthCam = (timing.duration / 4) * DEG;
         const peakCrankDeg = c.fireAngle + timing.center;
@@ -1133,7 +1126,7 @@ export class EngineBuilder {
 
   _buildCamshaft() {
     const m = this.mats;
-    const asm = this.makeAssembly('camshaft', lly.explode.offsets.camshaft);
+    const asm = this.makeAssembly('camshaft', this.entry.explode.offsets.camshaft);
     const part = this.createPart(asm, 'camshaft');
     part.position.y = CAM_Y;
     const spin = new THREE.Group();
@@ -1172,7 +1165,7 @@ export class EngineBuilder {
       // Laser-etched cylinder/valve index on the lobe flank.
       const idText = `${row.cylinder.number}${row.type === 'intake' ? 'I' : 'E'}`;
       const tex = labelLines(
-        [{ ...lly.look.labelStyles.valveIndex, text: idText }],
+        [{ ...this.entry.look.labelStyles.valveIndex, text: idText }],
         { width: 256, height: 128, padding: 8 },
       );
       decal(lobe, tex, 16, 8, [CAM_BASE_RADIUS - 5, 0, 8.1], [0, 0, 0], {
@@ -1217,9 +1210,9 @@ export class EngineBuilder {
     this.injectionCones = [];
 
     for (const bank of ['R', 'L']) {
-      const bankRotation = lly.layout.banks.find((bankSpec) => bankSpec.id === bank).rotationDeg;
+      const bankRotation = this.entry.layout.banks.find((bankSpec) => bankSpec.id === bank).rotationDeg;
       const rotation = bankRotation * DEG;
-      const offset = lly.explode.offsets[`head-${bank}`];
+      const offset = this.entry.explode.offsets[`head-${bank}`];
       const asm = this.makeAssembly(`head-${bank}`, offset, rotation);
       this.headAssemblies[bank] = asm;
       const headPart = this.createPart(asm, bank === 'R' ? 'cylinder-head-right' : 'cylinder-head-left');
@@ -1241,7 +1234,7 @@ export class EngineBuilder {
       this._buildCombustionGlow(asm, bank, headPart);
       this._buildGlowPlugs(asm, bank, headPart);
 
-      const coverOffset = lly.explode.offsets[`cover-${bank}`];
+      const coverOffset = this.entry.explode.offsets[`cover-${bank}`];
       const coverAsm = this.makeAssembly(`cover-${bank}`, coverOffset, rotation);
       this.coverAssemblies[bank] = coverAsm;
       const coverPart = this.createPart(coverAsm, 'valve-covers');
@@ -1280,7 +1273,7 @@ export class EngineBuilder {
       }),
     );
     // Intake-side and exhaust-side port faces.
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       if (c.bank !== bank) continue;
       // inboard intake port boss
       headPart.add(
@@ -1423,8 +1416,8 @@ export class EngineBuilder {
     // Casting inscription.
     const tex = labelLines(
       [
-        lly.look.decals.head[0],
-        lly.look.bankLabels.head[bank],
+        this.entry.look.decals.head[0],
+        this.entry.look.bankLabels.head[bank],
       ],
       { width: 1024, height: 220, padding: 26 },
     );
@@ -1599,7 +1592,7 @@ export class EngineBuilder {
       );
       // stamped rocker identification
       const rt = labelLines(
-        [{ ...lly.look.labelStyles.rockerMark, text: typeIsIntake ? 'I' : 'E' }],
+        [{ ...this.entry.look.labelStyles.rockerMark, text: typeIsIntake ? 'I' : 'E' }],
         { width: 128, height: 128, padding: 10 },
       );
       decal(rocker, rt, 13, 13, [armCenter + 5, 8.2, zToBridge * 0.55], [-Math.PI / 2, 0, 0], {
@@ -1748,12 +1741,12 @@ export class EngineBuilder {
 
   _buildCombustionGlow(asm, bank, headPart) {
     const radial = makeGlowSpriteTexture();
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       if (c.bank !== bank) continue;
       const sprite = new THREE.Sprite(
         new THREE.SpriteMaterial({
           map: radial,
-          color: lly.look.effects.combustionGlow,
+          color: this.entry.look.effects.combustionGlow,
           transparent: true,
           opacity: 0,
           blending: THREE.AdditiveBlending,
@@ -1835,7 +1828,7 @@ export class EngineBuilder {
         ),
       );
       const glowMat = new THREE.MeshBasicMaterial({
-        color: lly.look.effects.injectorGlow,
+        color: this.entry.look.effects.injectorGlow,
         transparent: true,
         opacity: 0.08,
         blending: THREE.AdditiveBlending,
@@ -1851,8 +1844,8 @@ export class EngineBuilder {
       );
       const micro = labelLines(
         [
-          lly.look.decals.injectors[0],
-          lly.look.decals.injectors[1],
+          this.entry.look.decals.injectors[0],
+          this.entry.look.decals.injectors[1],
         ],
         { width: 512, height: 200, padding: 12 },
       );
@@ -1887,7 +1880,7 @@ export class EngineBuilder {
     const m = this.mats;
     const outboardSign = bank === 'R' ? -1 : 1;
     const glowPart = this.createPart(asm, 'glow-plugs');
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       if (c.bank !== bank) continue;
       const g = new THREE.Group();
       g.position.set(outboardSign * 105, 336, c.z);
@@ -1922,7 +1915,7 @@ export class EngineBuilder {
     // One glow harness trunk per bank.
     const harnessMat = m.rubber;
     const pts = [];
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       if (c.bank !== bank) continue;
       pts.push([outboardSign * 128, 382, c.z]);
     }
@@ -2001,8 +1994,8 @@ export class EngineBuilder {
     );
     const plaqueLabel = labelLines(
       [
-        lly.look.decals.valveCover[0],
-        lly.look.decals.valveCover[1],
+        this.entry.look.decals.valveCover[0],
+        this.entry.look.decals.valveCover[1],
       ],
       { width: 1600, height: 300, padding: 30, background: 'transparent' },
     );
@@ -2037,8 +2030,8 @@ export class EngineBuilder {
     // Bank / cylinder identification plate on the front cover face.
     const bankTex = labelLines(
       [
-        lly.look.bankLabels.bank[bank],
-        lly.look.bankLabels.side[bank],
+        this.entry.look.bankLabels.bank[bank],
+        this.entry.look.bankLabels.side[bank],
       ],
       { width: 1200, height: 230, padding: 20, background: 'transparent' },
     );
@@ -2124,8 +2117,8 @@ export class EngineBuilder {
     // cover sticker
     const caution = makeLabelTexture(
       [
-        lly.look.decals.coverCaution[0],
-        lly.look.decals.coverCaution[1],
+        this.entry.look.decals.coverCaution[0],
+        this.entry.look.decals.coverCaution[1],
       ],
       { width: 1000, height: 190, background: '#181a17', border: true, accent: '#c9a150', padding: 24 },
     );
@@ -2141,7 +2134,7 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _buildOilPan() {
     const m = this.mats;
-    const asm = this.makeAssembly('oil-pan', lly.explode.offsets['oil-pan']);
+    const asm = this.makeAssembly('oil-pan', this.entry.explode.offsets['oil-pan']);
     const part = this.createPart(asm, 'oil-pan');
     const panMat = m.wrinkleBlack;
     part.add(
@@ -2205,8 +2198,8 @@ export class EngineBuilder {
     );
     const panLabel = labelLines(
       [
-        lly.look.decals.oilPan[0],
-        lly.look.decals.oilPan[1],
+        this.entry.look.decals.oilPan[0],
+        this.entry.look.decals.oilPan[1],
       ],
       { width: 850, height: 240, padding: 30 },
     );
@@ -2217,7 +2210,7 @@ export class EngineBuilder {
 
   _buildOilFilter() {
     const m = this.mats;
-    const asm = this.makeAssembly('oil-filter', lly.explode.offsets['oil-filter']);
+    const asm = this.makeAssembly('oil-filter', this.entry.explode.offsets['oil-filter']);
     const part = this.createPart(asm, 'oil-filter');
     // Driver-side (+X) spin-on filter mounted mid-block between the front and
     // rear engine mounts for unobstructed clearance and inspection.
@@ -2251,9 +2244,9 @@ export class EngineBuilder {
 
     const filterLabel = makeLabelTexture(
       [
-        lly.look.decals.oilFilter[0],
-        lly.look.decals.oilFilter[1],
-        lly.look.decals.oilFilter[2],
+        this.entry.look.decals.oilFilter[0],
+        this.entry.look.decals.oilFilter[1],
+        this.entry.look.decals.oilFilter[2],
       ],
       { width: 1024, height: 256, background: '#174b70', padding: 48, border: true, accent: '#d8dcd9' },
     );
@@ -2265,7 +2258,7 @@ export class EngineBuilder {
       clearcoatRoughness: 0.3,
     });
     const capMat = new THREE.MeshStandardMaterial({
-      color: lly.look.palette.oilFilterCap,
+      color: this.entry.look.palette.oilFilterCap,
       metalness: 0.6,
       roughness: 0.3,
     });
@@ -2323,8 +2316,8 @@ export class EngineBuilder {
     );
     const filterPlate = labelLines(
       [
-        lly.look.decals.oilFilterPlate[0],
-        lly.look.decals.oilFilterPlate[1],
+        this.entry.look.decals.oilFilterPlate[0],
+        this.entry.look.decals.oilFilterPlate[1],
       ],
       { width: 640, height: 240, background: '#171b18', border: true, accent: '#8e743b', padding: 18 },
     );
@@ -2336,10 +2329,10 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _buildFrontDrive() {
     const m = this.mats;
-    const asm = this.makeAssembly('front-drive', lly.explode.offsets['front-drive']);
+    const asm = this.makeAssembly('front-drive', this.entry.explode.offsets['front-drive']);
     const part = this.createPart(asm, 'front-drive');
     const frontCoverMat = m.castAluminum.clone();
-    frontCoverMat.color.setHex(lly.look.palette.frontCover);
+    frontCoverMat.color.setHex(this.entry.look.palette.frontCover);
     frontCoverMat.roughness = 0.5;
     frontCoverMat.metalness = 0.72;
     // Cast gear cover with a contoured, lobed outline rather than a simple box.
@@ -2506,7 +2499,7 @@ export class EngineBuilder {
         }),
       );
     }
-    decal(alt, makeLabelTexture([lly.look.decals.alternator[0]], { width: 700, height: 140, padding: 20 }), 68, 14, [0, 20, 64.3], [0, 0, 0], { roughness: 0.8 });
+    decal(alt, makeLabelTexture([this.entry.look.decals.alternator[0]], { width: 700, height: 140, padding: 20 }), 68, 14, [0, 20, 64.3], [0, 0, 0], { roughness: 0.8 });
 
     // Serpentine belt path: exact tangent loop around all 6 pulleys at z = 386.
     const beltCurve = new THREE.CatmullRomCurve3(
@@ -2602,8 +2595,8 @@ export class EngineBuilder {
     );
     const badgeLabel = labelLines(
       [
-        lly.look.decals.exhaustManifold[0],
-        lly.look.decals.exhaustManifold[1],
+        this.entry.look.decals.exhaustManifold[0],
+        this.entry.look.decals.exhaustManifold[1],
       ],
       { width: 1024, height: 250, padding: 26 },
     );
@@ -2645,9 +2638,9 @@ export class EngineBuilder {
     const m = this.mats;
     this.exhaustEnds = {};
     for (const bank of ['R', 'L']) {
-      const bankRotation = lly.layout.banks.find((bankSpec) => bankSpec.id === bank).rotationDeg;
+      const bankRotation = this.entry.layout.banks.find((bankSpec) => bankSpec.id === bank).rotationDeg;
       const rotation = bankRotation * DEG;
-      const asm = this.makeAssembly(`exhaust-${bank}`, lly.explode.offsets[`exhaust-${bank}`], rotation);
+      const asm = this.makeAssembly(`exhaust-${bank}`, this.entry.explode.offsets[`exhaust-${bank}`], rotation);
       const id = bank === 'R' ? 'exhaust-manifold-right' : 'exhaust-manifold-left';
       const part = this.createPart(asm, id);
       const outboardSign = bank === 'R' ? -1 : 1;
@@ -2680,7 +2673,7 @@ export class EngineBuilder {
         }),
       );
       // Four runners from head ports into the log.
-      const cylinders = CYLINDERS.filter((c) => c.bank === bank);
+      const cylinders = this.kinematics.cylinders.filter((c) => c.bank === bank);
       for (let i = 0; i < cylinders.length; i++) {
         const c = cylinders[i];
         manifold.add(
@@ -2753,8 +2746,8 @@ export class EngineBuilder {
         shield,
         makeLabelTexture(
           [
-            lly.look.decals.exhaustShield[0],
-            lly.look.decals.exhaustShield[1],
+            this.entry.look.decals.exhaustShield[0],
+            this.entry.look.decals.exhaustShield[1],
           ],
           { width: 700, height: 260, padding: 22 },
         ),
@@ -2775,7 +2768,7 @@ export class EngineBuilder {
 
   _buildTurbo() {
     const m = this.mats;
-    const asm = this.makeAssembly('turbo', lly.explode.offsets.turbo);
+    const asm = this.makeAssembly('turbo', this.entry.explode.offsets.turbo);
     const part = this.createPart(asm, 'turbo');
     const turbo = new THREE.Group();
     turbo.position.set(0, 376, -242);
@@ -2816,8 +2809,8 @@ export class EngineBuilder {
     );
     const gtLabel = labelLines(
       [
-        lly.look.decals.turboPlaque[0],
-        lly.look.decals.turboPlaque[1],
+        this.entry.look.decals.turboPlaque[0],
+        this.entry.look.decals.turboPlaque[1],
       ],
       { width: 800, height: 240, padding: 16 },
     );
@@ -2912,7 +2905,7 @@ export class EngineBuilder {
     );
     // Anti-ingestion screen and radial support bars.
     const screenMat = new THREE.MeshBasicMaterial({
-      color: lly.look.palette.turboScreen,
+      color: this.entry.look.palette.turboScreen,
       wireframe: true,
       transparent: true,
       opacity: 0.5,
@@ -3032,15 +3025,15 @@ export class EngineBuilder {
     // Identification plaque.
     const plaque = makeLabelTexture(
       [
-        lly.look.decals.turboIdPlate[0],
-        lly.look.decals.turboIdPlate[1],
+        this.entry.look.decals.turboIdPlate[0],
+        this.entry.look.decals.turboIdPlate[1],
       ],
       { width: 800, height: 240, padding: 24, background: '#bcbdb5', border: true, accent: '#70736d' },
     );
     decal(turbo, plaque, 92, 27.6, [0, 43, 84], [0, 0, 0], { roughness: 0.52 });
     decal(
       turbo,
-      makeLabelTexture([lly.look.decals.turboBosch[0]], {
+      makeLabelTexture([this.entry.look.decals.turboBosch[0]], {
         width: 500,
         height: 130,
         background: '#272a28',
@@ -3160,10 +3153,10 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _buildIntake() {
     const m = this.mats;
-    const asm = this.makeAssembly('intake', lly.explode.offsets.intake);
+    const asm = this.makeAssembly('intake', this.entry.explode.offsets.intake);
     const part = this.createPart(asm, 'intake-manifold');
     const intakeAlum = m.castAluminum.clone();
-    intakeAlum.color.setHex(lly.look.palette.intake);
+    intakeAlum.color.setHex(this.entry.look.palette.intake);
     intakeAlum.roughness = 0.46;
     intakeAlum.metalness = 0.78;
     // Cast Y-bridge / valley intake manifold.
@@ -3249,8 +3242,8 @@ export class EngineBuilder {
     );
     const yLabel = labelLines(
       [
-        lly.look.decals.intake[0],
-        lly.look.decals.intake[1],
+        this.entry.look.decals.intake[0],
+        this.entry.look.decals.intake[1],
       ],
       { width: 1400, height: 300, padding: 26, background: 'transparent' },
     );
@@ -3325,8 +3318,8 @@ export class EngineBuilder {
       decal(
         charges,
         makeLabelTexture([
-          lly.look.decals.chargePipe[0],
-          lly.look.decals.chargePipe[1],
+          this.entry.look.decals.chargePipe[0],
+          this.entry.look.decals.chargePipe[1],
         ], { width: 760, height: 170, background: '#1b201e', padding: 16 }),
         88,
         19.7,
@@ -3340,7 +3333,7 @@ export class EngineBuilder {
 
   _buildEGR() {
     const m = this.mats;
-    const asm = this.makeAssembly('egr', lly.explode.offsets.egr);
+    const asm = this.makeAssembly('egr', this.entry.explode.offsets.egr);
     const part = this.createPart(asm, 'egr');
     const egr = new THREE.Group();
     egr.position.set(-132, 335, -142);
@@ -3398,7 +3391,7 @@ export class EngineBuilder {
     );
     decal(
       valve,
-      makeLabelTexture([lly.look.decals.egr[0]], {
+      makeLabelTexture([this.entry.look.decals.egr[0]], {
         width: 300,
         height: 140,
         background: '#262823',
@@ -3455,8 +3448,8 @@ export class EngineBuilder {
       egr,
       makeLabelTexture(
         [
-          lly.look.decals.egrCooler[0],
-          lly.look.decals.egrCooler[1],
+          this.entry.look.decals.egrCooler[0],
+          this.entry.look.decals.egrCooler[1],
         ],
         { width: 800, height: 220, padding: 22 },
       ),
@@ -3473,7 +3466,7 @@ export class EngineBuilder {
   ----------------------------------------------------------------------- */
   _buildFuelSystem() {
     const m = this.mats;
-    const asm = this.makeAssembly('fuel', lly.explode.offsets.fuel);
+    const asm = this.makeAssembly('fuel', this.entry.explode.offsets.fuel);
     const cp3 = this.createPart(asm, 'cp3');
     const rails = this.createPart(asm, 'fuel-rails');
     const lines = this.createPart(asm, 'high-pressure-lines');
@@ -3543,8 +3536,8 @@ export class EngineBuilder {
       pump,
       makeLabelTexture(
         [
-          lly.look.decals.cp3[0],
-          lly.look.decals.cp3[1],
+          this.entry.look.decals.cp3[0],
+          this.entry.look.decals.cp3[1],
         ],
         { width: 950, height: 300, padding: 28 },
       ),
@@ -3563,7 +3556,7 @@ export class EngineBuilder {
       }),
     );
     const cp3Top = labelLines(
-      [lly.look.decals.cp3Top[0]],
+      [this.entry.look.decals.cp3Top[0]],
       { width: 950, height: 120, padding: 12 },
     );
     const cp3TopMesh = new THREE.Mesh(
@@ -3693,8 +3686,8 @@ export class EngineBuilder {
       );
       const railLabel = makeLabelTexture(
         [
-          lly.look.decals.fuelRail[0],
-          lly.look.decals.fuelRail[1],
+          this.entry.look.decals.fuelRail[0],
+          this.entry.look.decals.fuelRail[1],
         ],
         { width: 900, height: 230, background: '#232521', padding: 20 },
       );
@@ -3702,7 +3695,7 @@ export class EngineBuilder {
     }
 
     // Injector feed lines from rail fittings to the exposed injector tops.
-    for (const c of CYLINDERS) {
+    for (const c of this.kinematics.cylinders) {
       const p = this.injectorPoints[c.number];
       if (!p) continue;
       const bankSign = c.bank === 'R' ? -1 : 1;
@@ -4079,6 +4072,10 @@ export class EngineBuilder {
   /* -----------------------------------------------------------------------
      Runtime animation
   ----------------------------------------------------------------------- */
+  telemetry(rpm, calibrationId, firing) {
+    return telemetryValues(this.entry, { rpm, calibration: calibrationId, firing });
+  }
+
   setCutaway(on) {
     this.cutawayTarget = on ? 1 : 0;
   }
@@ -4087,9 +4084,11 @@ export class EngineBuilder {
     this.explodeTarget = on ? 1 : 0;
   }
 
+  // The exploded view also fades the castings, by this fraction of a full cutaway, so the crank, rods and
+  // pistons stay legible inside the block.
   /** How faded the castings are: the cutaway, or the lesser fade the exploded view applies. */
   get effectiveCutaway() {
-    return Math.max(this.cutawayAmount, this.explodeAmount * EXPLODE_CUTAWAY_FRACTION);
+    return Math.max(this.cutawayAmount, this.explodeAmount * this.entry.explode.cutawayFraction);
   }
 
   /** True when the castings are faded enough that picking goes through them. */
@@ -4192,11 +4191,11 @@ export class EngineBuilder {
     // Pistons and rods: exact crank-slider geometry.
     for (const item of this.pistons) {
       const c = item.cylinder;
-      const s = cylinderState(c, crankDeg);
+      const s = this.kinematics.cylinderState(c, crankDeg);
       item.root.position.set(0, s.wristY, c.z);
       const rel = (s.pinAngle - c.bankAxisDeg * DEG);
-      const xPin = -LLY.crankRadiusMm * Math.sin(rel);
-      const yPin = LLY.crankRadiusMm * Math.cos(rel);
+      const xPin = -this.kinematics.crankRadiusMm * Math.sin(rel);
+      const yPin = this.kinematics.crankRadiusMm * Math.cos(rel);
       const dy = s.wristY - yPin;
       item.root.rotation.y = 0;
       const rodItem = this.rods.find((r) => r.cylinder === c);
@@ -4261,20 +4260,20 @@ export class EngineBuilder {
     // Turbo shaft speed is tied to RPM with a small exhaust-pulse shimmer.
     const rpm = frame.rpm || 0;
     const firingPulse = 0.5 + 0.5 * Math.sin((crankDeg * DEG * 4) + t * 9);
-    const turboBase = rpm > 20 ? 3.2 + (rpm / lly.ratings.redlineRpm) * 145 : 0;
+    const turboBase = rpm > 20 ? 3.2 + (rpm / this.kinematics.redlineRpm) * 145 : 0;
     const turboRate = turboBase * frame.timeScale;
     for (const w of this.turboWheels) {
       w.group.rotation.z += turboRate * w.mult * dt * (0.94 + 0.06 * firingPulse);
     }
     if (this.turboActuator) {
-      const vane = vaneAtRpm(lly, rpm);
+      const vane = vaneAtRpm(this.entry, rpm);
       this.turboActuator.rotation.z = THREE.MathUtils.lerp(-0.35, 0.75, vane / 100);
     }
 
     // Injection glow and combustion flashes.
     const combustionEnabled = frame.fuel !== false && (frame.rpm || 0) > 5;
     for (const f of this.combustionFlashes) {
-      const s = cylinderState(f.c, crankDeg);
+      const s = this.kinematics.cylinderState(f.c, crankDeg);
       const plug = frame.glow ?? 0;
       const intensity = combustionEnabled ? s.combustion : 0;
       f.sprite.material.opacity = intensity * 0.95 + plug * 0.03;
@@ -4284,7 +4283,7 @@ export class EngineBuilder {
       f.cone.scale.setScalar(0.7 + s.injection * 0.7);
     }
     for (const inj of this.injectors) {
-      const s = cylinderState(inj.cylinder, crankDeg);
+      const s = this.kinematics.cylinderState(inj.cylinder, crankDeg);
       const pulse = combustionEnabled ? s.injection : 0;
       inj.glowMat.opacity = 0.05 + pulse * 0.95;
       inj.nozzleMat.opacity = pulse * 0.85;
@@ -4317,6 +4316,7 @@ function makeGlowSpriteTexture() {
   return t;
 }
 
+// Standard V8 part identifiers; construction reads the supplied entry layout.
 export const PART_IDS = [
   'block',
   'crank',
@@ -4351,22 +4351,21 @@ export const PART_IDS = [
   'wiring-harness',
   'exhaust-downpipe',
   'engine-mounts',
-  ...CYLINDERS.flatMap((c) => [`piston-${c.number}`, `rod-${c.number}`]),
+  ...Array.from({ length: 8 }, (_, index) => [`piston-${index + 1}`, `rod-${index + 1}`]).flat(),
 ];
 
-export function buildEngine(materials) {
-  return new EngineBuilder(materials).build();
+export function buildEngine(materials, entry) {
+  const builder = new EngineBuilder(materials, entry);
+  try { return builder.build(); }
+  catch (error) { builder.dispose(); throw error; }
 }
 
 export {
   DECK_Y,
-  HEAD_TOP,
-  ROCKER_Y,
   VALVE_TIP_Y,
   CAM_Y,
   CAM_BASE_RADIUS,
   ROLLER_RADIUS,
   LOBE_LIFT,
-  EXPLODE_CUTAWAY_FRACTION,
   XRAY_PICK_THRESHOLD,
 };

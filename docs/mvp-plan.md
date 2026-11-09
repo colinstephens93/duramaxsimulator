@@ -1,6 +1,6 @@
 # MVP plan: from the Phase 3 checkpoint to a shippable engine library
 
-Status: written 2026-11-05 at checkpoint `e13290b`. This is the executable plan. It names every remaining package, its files, its steps, its checks and its stop conditions. The design is in [engine-library-plan.md](engine-library-plan.md). The rules are in [agent-runbook.md](agent-runbook.md). The state at the checkpoint is in [handoff.md](handoff.md). The next prompt is in [prompts/3.3a-family-takes-entry.md](prompts/3.3a-family-takes-entry.md).
+Status: written 2026-11-05 at checkpoint `e13290b`; implementation current through Phase 6 on 2026-11-08. Current evidence and remaining original Windows/manual acceptance are in [handoff.md](handoff.md); [Phase 6 execution](prompts/6-hardening.md) and the append-only build log document corrections and the separate re-capture. Final human acceptance/push/merge requested 2026-11-09; environment publication remains outside scope.
 
 Where this plan and the design disagree, this plan says so and names the decision (section 7). Nobody changes a decision silently.
 
@@ -83,15 +83,19 @@ REPORT BACK: exactly what to paste.
 
 ## 3. Current status and the next package
 
-- **Done and gated:** Phase 0 (`phase-0-done`), Phase 1 (`phase-1-done`), Phase 2 (`phase-2-done`).
-- **Done, not gated:** 3.1 (registry), 3.2a (environment split), 3.2b (branding and gauges in the entry). All three are in the checkpoint commit `e13290b`.
-- **Next:** 3.3a, the V8 family takes the entry. Its prompt is ready: [prompts/3.3a-family-takes-entry.md](prompts/3.3a-family-takes-entry.md).
-- **Blocking decisions before Phase 4:** D4, D5 and D6 (section 7).
+The human authorized completing as much remaining work as possible with all approvals given. Earlier wait-after-each-package language is historical; packages were implemented sequentially and completion reported. The human accepted the final Windows picker fix and requested push/merge on 2026-11-09. Release preparation now commits the reviewed accumulated work.
 
-Phase 2's gate passed while the family still read the LLY module. That gap is the first work in Phase 3 (packages 3.3a and 3.3b). Decision D2 records it.
+- Phases 0–2: previously gated/tagged, not reopened.
+- Phase 3: runtime switching, ownership/disposal, browser memory checks and prop collision implemented; automated cloud acceptance passes.
+- Phase 4: independent LBZ data/provenance/spec copy, lazy registration and actual browser smoke pass; documented D4–D6 defaults adopted.
+- Phase 6: researched copy, sole QA hook, README/entry guide, archive removal, distribution guards, chair clearance and pointer-lock handling implemented. Independent final supplemental comparison passes exactly.
+- Current full checks: 247 Node tests/39 suites all pass, static/build/dist pass, four browser modules pass with zero errors and stable 617 geometries/91 textures across twenty swaps after warm-up.
+- Numeric re-capture changed exactly one calibration-label string and no measured value. Original supplemental reference preserved; new `.qa/cloud/reference-phase6` is separate. See [cloud validation](cloud-validation.md).
+- Windows hardware baseline/FPS and the picker retest were subsequently reported passing; final human acceptance is explicit. Requested Git push/merge is now being executed; no additional manual observations are invented.
+
+The numbered package definitions below are the approved specification/history. Completed execution records and file hashes are in [build-log.md](build-log.md); do not reapply old prompts.
 
 ---
-
 ## 4. The packages
 
 Sizes are relative (S, M, L). Line numbers are as of `e13290b`. Re-grep before editing, because they drift.
@@ -100,32 +104,37 @@ Sizes are relative (S, M, L). Line numbers are as of `e13290b`. Re-grep before e
 
 **Why 3.3 is four packages.** The runbook's 3.3 was one package. The lead review found three things that one package could not carry: the family and the kinematics still read the LLY module (so a second entry would show LLY's geometry and calibrations); the stand must be built and disposed per engine (plan section 7, steps 6 and 7); and the interim `active.js` binding feeds three modules. The split follows the 3.2a and 3.2b precedent. A migration of a test's imports goes in the package that removes the export the test depends on.
 
-#### 3.3a: the V8 family takes the entry (S, prompt ready)
+#### 3.3a: the V8 family takes the entry (S, complete with cloud verification)
 
 - **Goal:** `buildEngine(materials, entry)` and `EngineBuilder(materials, entry)`. The family stops importing the LLY module. LLY's output does not change.
 - **Files:** `src/engines/families/v8-ohv.js`, `src/main.js` (one line), `scripts/capture-browser.mjs` (one call and one import), `tests/picking.test.mjs` (planned migration), `docs/build-log.md`.
 - **Steps:** the prompt in [prompts/3.3a-family-takes-entry.md](prompts/3.3a-family-takes-entry.md). Do not restate it here.
-- **Verify:** `npm test` 207 passing; `npm run check` PASS; `npm run build`; `npm run baseline:compare` exit 0.
+- **Verified 2026-11-06:** `npm test` 212 passing (original 207 plus five D15 tests); repository checks and build PASS; cloud trace/geometry exact PASS and all six views 0 differing pixels. Original Windows visual acceptance remains outstanding under D15. Picking assertions unchanged; only the planned import/helper migration was made.
 - **Stop if:** any view, trace or geometry changes beyond render noise; an `lly` identifier remains in code.
 
-#### 3.3b: kinematics take the entry (M)
+#### 3.3b: kinematics take the entry (M, complete with cloud verification)
 
 - **Goal:** `kinematicsFor(entry)` in `src/engines/families/v8-ohv-kinematics.js` returns the values the family needs (cylinders, firing order, valve timing, station positions, bank offsets, calibrations, crank radius, rod length, redline). The family uses that result, not the module-level LLY constants.
 - **Module-level exports stay.** `CYLINDERS`, `CYLINDER_BY_NUMBER`, `CALIBRATIONS` and the rest stay as exports derived from the LLY entry, because `audio.js`, `specs.js` and `main.js` still import them. Package 3.3d removes them. So 3.3b changes no test import.
 - **Files:** `src/engines/families/v8-ohv-kinematics.js`, `src/engines/families/v8-ohv.js` (the family's imports and uses), `tests/kinematics.test.mjs` only if an assertion needs the new function (an import addition, logged).
 - **New tests:** `kinematicsFor(lly)` equals the existing exports (regression); `kinematicsFor(clone)` changes when the clone's `valvetrain.timing.intake.centerDeg` changes (proves the entry is read). Put them in a new file, `tests/kinematics-entry.test.mjs`.
-- **Verify:** `npm test` (207 plus the new tests; report the count); `npm run check`; `npm run build`; `npm run baseline:compare` exact.
+- **Verify:** `npm test` (current 212 plus the new tests; report the count); `npm run check`; `npm run build`; cloud comparison exact under D15 with the reviewed capture migration recorded for 3.3a; original Windows visual acceptance remains outstanding until run there.
+- **Verified 2026-11-06:** 217 tests (five new), 38 suites, 0 failures/skips; checks/build pass. Pre/post cloud trace and geometry match exactly; six views 0 differing pixels. Existing tests and capture helper unchanged. Models use their explicit factory result; legacy exports and the documented static-ID/empty-helper compatibility bridges remain until 3.3d. Full record: [3.3b prompt](prompts/3.3b-kinematics-takes-entry.md) and build log.
 - **Stop if:** any LLY output changes. Stop even if the change is one pixel at delta 1 in the trace or geometry.
 
-#### 3.3c: the stand is built per engine, the cell once (M)
+#### 3.3c: the stand is built per engine, the cell once (M, complete with cloud verification)
 
 - **Goal:** `buildEnvironment(scene, renderer, materials, entry)` builds the cell only. The stand is built by a separate call that the swap also uses. `buildStand` is called from `main.js`, not from inside the cell build. The stand's collision volumes (dyno box and guard) come back from the stand build. The stand's values stay LLY's until Phase 5 (decision D10).
-- **Random order.** `withSeededRandom` wraps the build, so the order of `Math.random` calls matters. Before moving the stand call, check with `Select-String -Path src\environment\stand.js -Pattern 'Math.random'` that the stand draws no random numbers. If it draws none, the order of the cell's random calls is unchanged.
+- **Random order (inspection correction, 2026-11-06).** No direct Math.random occurs in stand.js, but Three.js constructors consume it for UUIDs. Therefore the old direct-source scan alone does not establish safe reorderability. An optional generic attachment hook lets main construct the stand at its original point, without adding a parent Group. Stand roots are marked dynamic before the cell merge; main calls stand.finalize after cell completion, retaining the old cell/stand/dyno merge order. A browser diagnostic confirms all 8,992 seeded draws (values/categories), 720 dust coordinates and graph/picking order are unchanged.
 - **Files:** `src/environment/cell.js`, `src/environment/stand.js`, `src/main.js` (the call sites). `tests/fixture.test.mjs` stays unchanged, because it tests the cell.
 - **Verify:** `npm test`; `npm run check`; `npm run build`; `npm run baseline:compare` exact.
+- **Verified 2026-11-06:** all 217 tests/38 suites pass unchanged; checks/build pass. Cloud traces/geometry exact and six views 0 differing pixels. Stand body/helpers unchanged byte-for-byte. Independent cell/stand construction, badge disposal/replacement, collision outputs and idempotent finalize pass a real-Chrome API check. Original Windows visual validation remains outstanding under D15.
+- **Resulting API:** buildEnvironment(scene, renderer, materials, entry, attach?) constructs the cell; main supplies an attachment callback only for original boot ordering. buildStand(parent, materials, entry) returns two owned roots, registry, badge setter, collision and finalize. Center radius/dynoBox moved unchanged; guardBox is derived from the current guard mesh. Main combines collision data for the unchanged solver; consuming the new guardBox is deferred to collision integration. Cell and stand branding are independent and valid redline data is required. Later swaps build/finalize new stands directly under the existing cell root.
 - **Stop if:** the baseline changes; a stand value changes; the random-call order changes.
 
-#### 3.3d: the swap, the picker, the engine reference and the QA hook (L)
+#### 3.3d: the swap, the picker, the engine reference and the QA hook (L, complete with cloud verification)
+
+Verified 2026-11-06: full suite 227 tests/38 suites, 0 failures/skips; check/build pass, ineffective dynamic-import warning gone. Exact cloud traces/geometry and six views with 0 differing pixels. Transient alternate-entry browser checks pass lock/reset/rebind/QA/context retention/failure/reload. The approved numeric-helper and deletion-aware runner corrections are applied without changing capture logic, references, assertions or thresholds. Full GPU cleanup/counts remain 3.5/3.6, persistent fixture 3.4 and original Windows/manual gates outstanding. See [execution record](prompts/3.3d-runtime-switching.md).
 
 - **Goal:** plan section 7 in `src/core/swap.js`: `switchEngine(id)` with the input lock, the request token, the stop, the overlay, the load, the build, the dispose, the reset, the rebind and the finish.
 - **Pieces:**
@@ -140,12 +149,15 @@ Sizes are relative (S, M, L). Line numbers are as of `e13290b`. Re-grep before e
   - `collision.js` and `specs.js` read the current entry or copy at call time. Neither imports `active.js`.
   - `src/engines/active.js` is deleted, and the module-level exports from 3.3b are removed, with their consumers migrated.
   - The module-level exports removed here have test importers, and each one migrates (planned, plan section 8): `tests/kinematics.test.mjs`, `tests/audio-pulses.test.mjs`, `tests/helpers/fake-audio.mjs`, and our `tests/registry.test.mjs` (imports only). `tests/collision.test.mjs` also migrates: its 1.03 m assertions read `walk.clearanceRadiusM`, and its import path changes. Log each migration.
-- **Files:** the ones above, plus `index.html` and `src/ui/bind.js` for the picker, `src/audio.js` for `configure`, and `docs/build-log.md`.
+  - **Follow-up recorded by 3.3b:** its new `tests/kinematics-entry.test.mjs` compares the factory against compatibility exports and therefore also needs an explicit planned migration when those exports are removed. Preserve equivalent default-data/motion expectations and all clone behavior assertions; do not drop coverage or loosen checks. Migrate the model's static `PART_IDS` no-argument bridge and empty stand-in valve-row caller to explicit data before removing the default compatibility result. Log these contract migrations separately from assertion changes; no such migration is performed in 3.3b.
+- **Files:** the ones above, plus `index.html` and `src/ui/bind.js` for the picker, `src/audio.js` for `configure`, and `docs/build-log.md`. Approved scope correction: `scripts/capture-numeric.mjs` (import/binding only), `scripts/cloud-baseline.mjs` (deleted-source provenance and exact runner review), plus current cloud instructions. The existing generic UI binder was reused without editing it.
 - **New tests:** the token helper (Node); `model.telemetry` is covered by the browser test in 3.6, because the family needs a browser to build.
 - **Verify:** `npm test`; `npm run check`; `npm run build`; `npm run baseline:compare` exact. Also, `npm run build` must no longer print the INEFFECTIVE_DYNAMIC_IMPORT warning for `copy.js`, because `active.js` is gone. Report whether it does.
 - **Stop if:** the LLY baseline changes; a swap leaves a stale value (report it; do not paper over it).
 
-#### 3.4: the test-only copy of LLY (S)
+#### 3.4: the test-only copy of LLY (S, complete with cloud verification)
+
+Verified 2026-11-07: 234 tests/39 suites pass, including seven fixture tests; all repository checks and production build pass. All eight output files exclude fixture markers. Actual Chrome development mode excludes the copy; test mode boots/loads it and completes a picker round trip with zero console/page errors. Cloud traces/geometry match exactly; six views have zero differing pixels; reference checksums unchanged. See [execution record](prompts/3.4-test-only-copy.md).
 
 - **Goal:** a copy in `tests/fixtures/engines/lly-copy/` (`index.js` and `copy.js`). It changes identity, ratings (calibration labels and peaks), curves, and the spec copy. It keeps the stroke, bore, layout, valve timing, look and explode data, because the V8 family's crank throw is a literal (plan section 4).
 - **Registration:** `ENGINE_IDS` gains `lly-copy` only when `import.meta.env?.MODE === 'test'`. Node sees `['lly']`, and `tests/registry.test.mjs` keeps its assertion.
@@ -282,7 +294,7 @@ Run these in order, and keep the output for the review entry. Do not accept a cl
 | 3.3a | `tests/picking.test.mjs` (import and helper only) | Migration |
 | 3.3b | `tests/kinematics-entry.test.mjs` | Node |
 | 3.3c | none; the baseline proves the stand build | Browser baseline |
-| 3.3d | token helper test; migrations of `tests/kinematics.test.mjs`, `tests/audio-pulses.test.mjs`, `tests/helpers/fake-audio.mjs`, `tests/registry.test.mjs` (imports) and `tests/collision.test.mjs` | Node, migration |
+| 3.3d | token helper test; migrations of `tests/kinematics.test.mjs`, `tests/kinematics-entry.test.mjs` (the temporary compatibility oracle, preserving behavioral coverage), `tests/audio-pulses.test.mjs`, `tests/helpers/fake-audio.mjs`, `tests/registry.test.mjs` (imports) and `tests/collision.test.mjs` | Node, migration |
 | 3.4 | `tests/lly-copy.test.mjs` | Node |
 | 3.5 | `tests/resources.test.mjs` | Node |
 | 3.6 | `tests/browser/swap.browser.mjs`, `tests/browser/smoke.browser.mjs` | Browser |
@@ -329,19 +341,20 @@ The human decides these. The default is what happens if nobody answers before th
 | ID | Question | Default | Needed before |
 | --- | --- | --- | --- |
 | D1 | MVP definition: Phases 0 to 4 and 6, Phase 5 out? | Yes, as section 1 | Phase 4 |
-| D2 | The Phase 2 gap (the family still reads LLY): treat it as Phase 3 work, and leave the Phase 2 gate as approved? | Yes | 3.3a |
+| D2 | The Phase 2 gap (the family still reads LLY): treat it as Phase 3 work, and leave the Phase 2 gate as approved? | Default adopted 2026-11-06 while executing the human-approved 3.3a task. Coupling is addressed in 3.3a/3.3b; the Phase 2 gate stays approved. | 3.3a |
 | D3 | The GitHub remote | Resolved 2026-11-05: `origin` is `https://github.com/colinstephens93/duramaxsimulator.git`, and the branches and tags are pushed | Done |
-| D4 | LBZ rod length: 163.0 mm (status `medium`), or `null`? | 163.0 mm, with a note | 4.1 |
-| D5 | LBZ valve timing and lift (a gap in the research): LLY's values labelled `design`? And amend runbook rule 7 to allow approved `design` values? | Yes, and yes | 4.1 |
-| D6 | LBZ behaviour and look values (not in the research): LLY's values labelled `design`, with copy that claims only what the research supports? | Yes | 4.1 |
-| D7 | Disposal by an ownership walk instead of a resource tracker threaded through the builders? | Yes; recorded as a deviation from plan section 7 | 3.5 |
-| D8 | Audio fires above 80 rpm (`audio.firingAboveRpm`), and the engine's firing gate is 90 rpm (`startSequence.firingAboveRpm`). Keep both? | Keep both, and record why in the log | 3.3d |
-| D9 | QA gaps in the MVP: fix the pointer-lock rejection (6.8) and the prop collision (3.7)? Leave open the outline's hidden-edge colour, the exploded-view camera width and the internal quick-part buttons? | Fix the two; leave the three open | 6.8 |
+| D4 | LBZ rod length | Adopted 2026-11-08 under broad approval: 163.0 mm, medium confidence, family listings S13/S14; not an LBZ-specific measurement. | 4.1 |
+| D5 | LBZ valve timing/lift | Adopted 2026-11-08: retain LLY estimates as design, with no claim of measured LBZ timing; runbook exception recorded. | 4.1 |
+| D6 | LBZ behavior/look | Adopted 2026-11-08: inherited illustrative values labelled design; copy distinguishes them from researched specifications. | 4.1 |
+| D7 | Disposal ownership | Adopted: ownership walk implemented; shared assets preserved, twenty-swap resource counts pass. | Done |
+| D8 | Audio fires above 80 rpm (`audio.firingAboveRpm`), and the engine's firing gate is 90 rpm (`startSequence.firingAboveRpm`). Keep both? | Default retained in 3.3d: separate existing audio/engine-telemetry consumers and behavior; no value change. | 3.3d |
+| D9 | QA gap scope | Prop collision and pointer-lock rejection fixed; three presentation gaps remain outside this MVP correction scope. | Done |
 | D10 | Stand values per engine (mounts, pedestal, guard, flywheel, engine centre, and the dyno label with "1,000 LB-FT"): Phase 5? | Phase 5; accepted by running 3.2b | 5.x (post-MVP) |
-| D11 | Injector wording in the copy ("piezoelectric" in the brief; the research favours solenoid). Plan section 11, item 1. | Keep "piezoelectric" until decided | 6.1 |
-| D12 | Console chair: the new position (plan section 11, item 2). | The lead proposes; the human approves | 6.6 |
+| D11 | Injector copy disagreement | Implemented: retain the brief’s terminology only as a qualified source disagreement; research preference for solenoid explicit. | Done |
+| D12 | Chair clearance | Broad approval applied to documented proposal; moved to local (-0.2,0,0.8), 0.260838 m envelope clearance, exemption removed. | Done |
 | D13 | LLY rod length corrected from 184 mm to 163.0 mm, as a separate logged change (plan section 3). | Not in the MVP; 184 mm stays, documented as stylised | After the MVP |
 | D14 | The commit author and trailer. | The configured git user (Colin Stephens); the trailer `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>` | Every commit |
+| D15 | Permit a separately recorded cloud regression reference and runner before 3.3a? | Approved 2026-11-06. Original baselines and acceptance remain unchanged; see [cloud-validation.md](cloud-validation.md). | Cloud implementation of 3.3a |
 
 ---
 
@@ -363,6 +376,8 @@ The human decides these. The default is what happens if nobody answers before th
 ---
 
 ## 9. Git and release policy
+
+Release decision, 2026-11-09: the human accepted the accumulated final build and requested push/merge. Phases 3, 4 and 6 were developed and accepted together without intermediate commits. Preserve that honest history with one consolidated accepted-MVP commit and the final phase-6-done gate tag; do not reconstruct untested historical phase states or imply intermediate snapshot tags. Merge into master without rewriting either branch. Earlier per-phase defaults below describe the original cadence.
 
 - **Branches.** `engine-library` is the working branch. `master` is the base. It holds the app before the refactor, at `864f014`. Nobody resets a shared branch (plan section 10).
 - **Checkpoints.** A WIP commit may be made when the human asks to save progress. It is labelled `WIP` in the subject, is not tagged, and does not replace the phase commit.

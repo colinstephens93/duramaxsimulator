@@ -2,11 +2,14 @@
 // fade it renders, so the exploded view (where only the lesser fade applies) can't drift from picking.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { EXPLODE_CUTAWAY_FRACTION, EngineBuilder, XRAY_PICK_THRESHOLD } from '../src/engines/families/v8-ohv.js';
+import { EngineBuilder, XRAY_PICK_THRESHOLD } from '../src/engines/families/v8-ohv.js';
+import lly from '../src/engines/lly/index.js';
+
+const EXPLODE_CUTAWAY_FRACTION = lly.explode.cutawayFraction;
 
 // Just the fields the getters read; building the engine itself needs a browser.
 const view = ({ cutaway = 0, explode = 0 } = {}) =>
-  Object.assign(Object.create(EngineBuilder.prototype), { cutawayAmount: cutaway, explodeAmount: explode });
+  Object.assign(Object.create(EngineBuilder.prototype), { entry: lly, cutawayAmount: cutaway, explodeAmount: explode });
 
 describe('x-ray picking', () => {
   it('leaves the assembled engine solid', () => {

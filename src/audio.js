@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { CYLINDERS } from './engines/families/v8-ohv-kinematics.js';
 import { mod } from './kinematics.js';
 
 function makeSaturationCurve(amount = 2.4, samples = 1024) {
@@ -33,6 +32,7 @@ function makeNoiseBuffer(ctx, seconds = 2.5) {
 export class TestCellAudio {
   constructor(config) {
     this.config = config;
+    this.cylinders = config.cylinders;
     this.ctx = null;
     this.initialized = false;
     this.enabled = true; // Active by default once browser unlocks audio
@@ -43,6 +43,21 @@ export class TestCellAudio {
     this._camPos = new THREE.Vector3();
     this._camFwd = new THREE.Vector3();
     this._camUp = new THREE.Vector3();
+  }
+
+  configure(config) {
+    this.config = config;
+    this.cylinders = config.cylinders;
+    this.lastCrankAngle = null;
+    this.smoothedTurboNorm = 0.08;
+    if (this.ctx) {
+      const now = this.ctx.currentTime;
+      this.firingOsc.frequency.cancelScheduledValues?.(now);
+      this.bankOsc.frequency.cancelScheduledValues?.(now);
+      this.firingOsc.frequency.setValueAtTime(config.baseToneHz, now);
+      this.bankOsc.frequency.setValueAtTime(config.baseToneHz / 2, now);
+      this.bankGain.gain.setValueAtTime(config.bankCadence ? 0.65 : 0, now);
+    }
   }
 
   _initContext() {
@@ -143,6 +158,7 @@ export class TestCellAudio {
 
     this.firingOsc = firingOsc;
     this.bankOsc = bankOsc;
+    this.bankGain = bankGain;
     this.crankOsc = crankOsc;
     this.exhaustFilter = exhaustFilter;
     this.exhaustSubFilter = exhaustSubFilter;
@@ -497,7 +513,7 @@ export class TestCellAudio {
     const frameAdvance = effectiveRpm * 6 * dt;
     if (this.lastCrankAngle !== null && firing && dt <= this.config.maxFrameS) {
       const prev = this.lastCrankAngle;
-      for (const cyl of CYLINDERS) {
+      for (const cyl of this.cylinders) {
         let distFromPrev = mod(cyl.fireAngle - prev, 720) || 720;
         while (distFromPrev <= frameAdvance) {
           this._triggerCylinderPulse(cyl, {

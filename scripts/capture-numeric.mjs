@@ -1,22 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import {
-  BANK_Z_OFFSET,
-  CALIBRATIONS,
-  CYLINDERS,
-  FIRING_ORDER,
-  LLY,
-  STATION_THROW_OFFSET,
-  STATION_Z,
-  VALVE_TIMING,
-  activeFiringCylinder,
-  crankPinWorld,
-  cylinderState,
-  pistonKinematics,
-  valveLift,
-  valveVelocity,
-} from '../src/engines/families/v8-ohv-kinematics.js';
+import { kinematicsFor } from '../src/engines/families/v8-ohv-kinematics.js';
+const { bankZOffset: BANK_Z_OFFSET, calibrations: CALIBRATIONS, cylinders: CYLINDERS, firingOrder: FIRING_ORDER, spec: LLY, stationThrowOffset: STATION_THROW_OFFSET, stationZ: STATION_Z, valveTiming: VALVE_TIMING, activeFiringCylinder, crankPinWorld, cylinderState, pistonKinematics, valveLift, valveVelocity } = kinematicsFor(lly);
 import { camshaftAngleDeg, cycleAngle } from '../src/kinematics.js';
 import lly from '../src/engines/lly/index.js';
 import {

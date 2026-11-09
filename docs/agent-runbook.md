@@ -4,6 +4,8 @@ For the AI agent that builds [engine-library-plan.md](engine-library-plan.md). T
 
 ## 1. Harness check (before Phase 0)
 
+Cloud addendum (D15, approved 2026-11-06): the original harness requirements below remain the Windows acceptance path. Supplemental Linux/Google Chrome validation may use the explicit cloud mode and separate `.qa/cloud/` references described in [cloud-validation.md](cloud-validation.md). This approval allows software rendering only for that labelled workflow; original capture defaults, renderer guards, baseline files, scenarios and thresholds remain unchanged. Cloud results do not satisfy original Windows visual acceptance. Run and report one task at a time, as requested by the human.
+
 The harness must provide:
 
 - A shell that runs Node 20.19 or later, or 22.12 or later, plus npm and git, on Windows. (The machine has Node 24.)
@@ -21,6 +23,7 @@ If an item is missing, stop and report which one. Don't work around it. Package 
 5. Don't rewrite source files with PowerShell. Use the file tools, or a Node script that reads and writes UTF-8. Delete with git or Node, not `Remove-Item -Recurse`, which can follow directory junctions (plan section 10).
 6. Report a check as passing only after you ran it and read its final lines. Paste those lines into the log.
 7. **Values come from the research.** Every numeric engine value comes from [research/lly.md](research/lly.md), [research/lbz.md](research/lbz.md) or [research/inline6.md](research/inline6.md), and carries a provenance record that cites the source IDs in [research/sources.md](research/sources.md). If a value is not in the research, write `null`, log it, and move on without it. Never fill a gap from memory, and never research a value during the build.
+   Approved exception (2026-11-08, D4–D6): LBZ may use 163.0 mm rod length from S13/S14 family listings with medium confidence and the explicit family-source note; missing LBZ valve timing/lift and behavior/look may use retained illustrative values labelled design. The human approved proceeding with the documented defaults. Research sheets remain unchanged.
 8. Never run `git reset --hard` or `git checkout --`. Never run `git push` unless the human names the remote and asks for that push. Tags mark gates. Rollback is a human decision.
 9. Commit at the end of each phase, on the phase branch (`engine-library`), after the human approves that phase's gate. Use the author and trailer the repo is configured with (plan section 10). A WIP checkpoint commit (no tag) may be made when the human asks to save progress between gates. It does not replace the phase commit.
 10. The open decisions in plan section 11 belong to the human. Values are not open decisions. If a decision is needed before a package and it isn't recorded, stop.

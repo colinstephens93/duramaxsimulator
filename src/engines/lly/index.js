@@ -77,7 +77,7 @@ export default {
     calibrations: {
       allison: {
         id: 'allison',
-        label: 'Allison 1000 6-Spd Auto',
+        label: 'Allison 1000 automatic',
         shortLabel: 'ALLISON 1000 AUTO',
         modelYears: '2006',
         peakTorqueLbFt: 605,
