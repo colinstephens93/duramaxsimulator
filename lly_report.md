@@ -1,5 +1,17 @@
 # 6.6L Duramax LLY (RPO LLY, 2004.5–2005) — model brief
 
+> **Status, 2026-10-29.** [`docs/research/`](docs/research/README.md) re-checked these notes against the sources and supersedes them where they differ. The differences are:
+> - Production ran from mid-2004 to early 2006, not 2004.5–2005 alone (research section 1).
+> - Injection pressure is 23,000 psi for 2004–2005. The 23,200 psi figure is 1,600 bar, rounded (section 3).
+> - The 835 lb figure is an approximate engine weight. Sources do not say whether it is dry or wet (section 5).
+> - Injectors: four secondary sources describe solenoid injectors, which the research favours. The GM-style spec sheet and DieselHub say piezoelectric. The claim check's "false for LLY" is too strong, because the sources conflict (section 6).
+> - Stock boost: 30 psi in one table (S06), against 23 psi here. The research labels it contested. "30 psi is a tuned figure" has no source (section 6).
+> - Vane height: 14.4 mm in S06, 15 mm in S04. The research uses 14.4 mm (section 6).
+> - The 605 lb-ft figure for the 2006 Allison automatic is agreed across the sources, so it is not contested (section 4). Only one encyclopedia row gives 605 lb-ft for the whole range, and that row contradicts its own text.
+> - 2006 carried both engines. "Mostly LBZ" has no source (research section 1; [`lbz.md`](docs/research/lbz.md) section 1).
+>
+> Where the research differs, the app keeps its baseline. The rod length stays at 184 mm, and the 23 psi boost cap stays, labelled contested.
+>
 > Development research notes, kept separate from the shipped interface copy. The visualisation includes a live calibration toggle supporting both the **Allison 1000 Automatic (`605 lb-ft / 310 hp / 26,000 psi`)** and **ZF S6-650 6-Speed Manual (`520 lb-ft / 300 hp / 23,000 psi`)** ratings, as well as real-time Web Audio API synthesis (`src/audio.js`); see the accuracy notes in [`README.md`](README.md).
 
 **Orientation.** 90° V8, longitudinal; #1 cylinder at the passenger-side front (`-X` when facing forward `+Z`, odds `1-3-5-7` passenger, evens `2-4-6-8` driver) with clockwise front crankshaft rotation. Front = gear/accessory drive; rear = flywheel.

@@ -8,28 +8,29 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { createMaterials } from './utils.js';
-import { buildEngine } from './engine.js';
-import { buildEnvironment } from './environment.js';
+import { ENGINE_IDS, installQaHook, loadEngine, parseEngineParam } from './engines/index.js';
+import { createEngineSwitcher } from './core/swap.js';
+import { buildEnvironment } from './environment/cell.js';
+import { buildStand } from './environment/stand.js';
 import { buildWalkWorld, confineOrbitCamera, resolveWalk } from './collision.js';
 import { TestCellAudio } from './audio.js';
+import { mod, strokeAtCycle } from './kinematics.js';
+
 import {
-  CALIBRATIONS,
-  CYLINDERS,
-  FIRING_ORDER,
-  LLY,
-  boostAtRpm,
-  coolantAtRpm,
-  cylinderState,
-  egtAtRpm,
   horsepowerAtRpm,
-  mod,
-  oilPressureAtRpm,
-  railPressureAtRpm,
-  strokeAtCycle,
   torqueAtRpm,
-  vaneAtRpm,
-} from './kinematics.js';
-import { COMPONENT_SPECS, getSpec } from './specs.js';
+} from './core/telemetry.js';
+import { startRun, stopRun, stepRun } from './core/simulation.js';
+import { bindEntry, presetByRpm, presetRows, railFullScalePsi } from './ui/bind.js';
+import { formatInt } from './ui/format.js';
+import { getSpec } from './specs.js';
+
+const initialRequest = parseEngineParam(window.location.search);
+let current = await loadEngine(initialRequest.id);
+let { entry } = current;
+let PART_IDS = current.family.PART_IDS;
+let CALIBRATIONS, CYLINDERS, FIRING_ORDER, cylinderState;
+let swapping = false;
 
 const TAU = Math.PI * 2;
 const ENGINE_Y = 1.0;
@@ -38,11 +39,38 @@ const HOME_TARGET = new THREE.Vector3(0, 1.035, -0.03);
 const INTRO_POSITION = new THREE.Vector3(3.4, 2.25, 4.05);
 const INTRO_TARGET = new THREE.Vector3(0, 1.14, -0.08);
 const ENGINE_CENTER_XZ = new THREE.Vector2(0, -0.05);
-const MAX_RPM = 3250;
+let MAX_RPM = entry.ratings.redlineRpm;
+let RAIL_FULL_SCALE_PSI = railFullScalePsi(entry);
 const SLOW_MOTION_SCALE = 0.12;
 
 const $ = (id) => document.getElementById(id);
 const QA_MODE = new URLSearchParams(window.location.search).has('qa');
+const QA_RANDOM_SEED = 0x5eed0a04;
+
+function createSeededRandom(seed) {
+  let state = seed >>> 0;
+  return function seededRandom() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const qaRandom = createSeededRandom(QA_RANDOM_SEED);
+
+function withSeededRandom(callback) {
+  if (!QA_MODE) return callback();
+  const originalRandom = Math.random;
+  Math.random = qaRandom;
+  try {
+    return callback();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 const clamp = THREE.MathUtils.clamp;
 const damp = THREE.MathUtils.damp;
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
@@ -81,13 +109,27 @@ camera.position.copy(INTRO_POSITION);
 camera.lookAt(INTRO_TARGET);
 
 const materials = createMaterials();
-const engine = buildEngine(materials);
+let engine = current.family.buildEngine(materials, entry);
+({ calibrations: CALIBRATIONS, cylinders: CYLINDERS, firingOrder: FIRING_ORDER, cylinderState } = engine.kinematics);
+current = { ...current, model: engine };
 engine.root.scale.setScalar(0.001);
 engine.root.position.set(0, ENGINE_Y, 0);
 scene.add(engine.root);
 
-const environment = buildEnvironment(scene, renderer, materials);
-const audio = new TestCellAudio();
+const initialCell = withSeededRandom(() => {
+  let stand;
+  const environment = buildEnvironment(scene, renderer, materials, entry, (root) => {
+    stand = buildStand(root, materials, entry);
+  });
+  // Preserve the original cell/stand/dyno merge order and its seeded UUID draws.
+  stand.finalize();
+  return { environment, stand };
+});
+const environment = initialCell.environment;
+let stand = initialCell.stand;
+current.stand = stand;
+const audioConfig = () => ({ maxRpm: MAX_RPM, boostPeakPsi: entry.turbo.boostPeakPsi, ...entry.audio, cylinders: CYLINDERS });
+const audio = new TestCellAudio(audioConfig());
 
 // A small inspection fill keeps the exposed internals legible under X-ray /
 // exploded presentation without changing the normal studio lighting.
@@ -97,11 +139,12 @@ scene.add(inspectionFill);
 // Combine both component registries so picking works across the cell.
 const partRegistry = new Map();
 for (const [id, roots] of engine.parts) partRegistry.set(id, roots.slice());
-for (const [id, roots] of environment.interactives) {
-  if (!partRegistry.has(id)) partRegistry.set(id, []);
-  partRegistry.get(id).push(...roots);
+for (const interactives of [stand.interactives, environment.interactives]) {
+  for (const [id, roots] of interactives) {
+    if (!partRegistry.has(id)) partRegistry.set(id, []);
+    partRegistry.get(id).push(...roots);
+  }
 }
-const VALVETRAIN_IDS = ['camshaft', 'lifters', 'pushrods', 'rockers', 'valve-bridges', 'valves'];
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -128,7 +171,9 @@ composer.setSize(window.innerWidth, window.innerHeight);
 const renderPass = new RenderPass(scene, camera);
 composer.addPass(renderPass);
 
-const ssaoPass = new SSAOPass(scene, camera, window.innerWidth, window.innerHeight, 16);
+const ssaoPass = withSeededRandom(
+  () => new SSAOPass(scene, camera, window.innerWidth, window.innerHeight, 16),
+);
 ssaoPass.kernelRadius = 8;
 ssaoPass.minDistance = 0.001;
 ssaoPass.maxDistance = 0.075;
@@ -148,12 +193,12 @@ const outlinePass = new OutlinePass(
   scene,
   camera,
 );
-outlinePass.edgeStrength = 4.5;
-outlinePass.edgeGlow = 0.3;
-outlinePass.edgeThickness = 1.0;
+outlinePass.edgeStrength = entry.look.outline.base.edgeStrength;
+outlinePass.edgeGlow = entry.look.outline.base.edgeGlow;
+outlinePass.edgeThickness = entry.look.outline.base.edgeThickness;
 outlinePass.pulsePeriod = 0;
-outlinePass.visibleEdgeColor.set(0xe9a33d);
-outlinePass.hiddenEdgeColor.set(0x20180c);
+outlinePass.visibleEdgeColor.set(entry.look.outline.base.edgeColor);
+outlinePass.hiddenEdgeColor.set(entry.look.outline.base.hiddenColor);
 outlinePass.enabled = false;
 composer.addPass(outlinePass);
 
@@ -173,12 +218,12 @@ const simulation = {
   starting: false,
   fuel: true,
   startTimer: 0,
-  rpm: LLY.idleRpm,
-  desiredRpm: 680,
-  lastRpmTarget: 680,
+  rpm: entry.ratings.idleRpm,
+  desiredRpm: entry.ratings.idleRpm,
+  lastRpmTarget: entry.ratings.idleRpm,
   crankAngle: 0,
   glow: 0,
-  calibration: 'allison',
+  calibration: entry.ratings.defaultCalibration,
   slowMotion: false,
   cutaway: false,
   exploded: false,
@@ -206,7 +251,7 @@ let uiTimer = 0;
 let fpsSamples = [];
 let qualityReduced = false;
 let screenshotPending = false;
-let startedAt = performance.now();
+let startedAt = QA_MODE ? 0 : performance.now();
 let frameCount = 0;
 
 const raycaster = new THREE.Raycaster();
@@ -221,7 +266,7 @@ const walk = {
   lastSafe: new THREE.Vector3(2.0, 1.66, 2.4),
 };
 // What the walker bumps into, in plan view: the room, the engine, the dyno guard and the console.
-const walkWorld = buildWalkWorld(environment.collision, { x: ENGINE_CENTER_XZ.x, z: ENGINE_CENTER_XZ.y });
+let walkWorld = buildWalkWorld({ ...environment.collision, ...stand.collision }, { x: ENGINE_CENTER_XZ.x, z: ENGINE_CENTER_XZ.y }, entry);
 
 // First frame / intro tween.
 introTween = {
@@ -239,16 +284,8 @@ controls.target.copy(INTRO_TARGET);
 // Simulation
 // ---------------------------------------------------------------------------
 function startEngine(target = simulation.desiredRpm) {
-  const wanted = target > 0 ? clamp(target, 0, MAX_RPM) : 680;
-  simulation.desiredRpm = wanted;
-  simulation.lastRpmTarget = wanted;
-  if (simulation.engineOn && !simulation.starting) return;
-  simulation.engineOn = true;
-  simulation.starting = true;
-  simulation.startTimer = 0;
-  simulation.fuel = false;
-  simulation.glow = 0.85;
-  simulation.hasRun = true;
+  if (swapping) return;
+  if (!startRun(simulation, entry, target)) return;
   syncUI(true);
   if (!simulation.autoStarted) {
     showToast('START SEQUENCE INITIATED · GLOW PLUGS ON');
@@ -256,21 +293,19 @@ function startEngine(target = simulation.desiredRpm) {
 }
 
 function stopEngine() {
-  simulation.engineOn = false;
-  simulation.starting = false;
-  simulation.fuel = false;
-  simulation.desiredRpm = 0;
-  simulation.lastRpmTarget = 0;
+  stopRun(simulation);
   syncUI(true);
   if (simulation.rpm > 0) showToast('FUEL CUT · ENGINE SPIN-DOWN');
 }
 
 function toggleEngine() {
+  if (swapping) return;
   if (simulation.engineOn) stopEngine();
-  else startEngine(simulation.desiredRpm > 0 ? simulation.desiredRpm : 680);
+  else startEngine(simulation.desiredRpm > 0 ? simulation.desiredRpm : entry.ratings.idleRpm);
 }
 
 function setDesiredRpm(value, { autoStart = false } = {}) {
+  if (swapping) return;
   const v = clamp(Math.round(value / 5) * 5, 0, MAX_RPM);
   if (v === 0) {
     simulation.desiredRpm = 0;
@@ -289,59 +324,19 @@ function updateSimulation(dt) {
   const s = simulation;
   const timeScale = s.slowMotion ? SLOW_MOTION_SCALE : 1;
 
-  if (s.engineOn) {
-    if (s.starting) {
-      s.startTimer += dt;
-      if (s.startTimer < 0.55) {
-        s.fuel = false;
-        s.rpm = damp(s.rpm, 190, 4.7, dt);
-        s.glow = damp(s.glow, 1, 6, dt);
-      } else if (s.startTimer < 1.25) {
-        s.fuel = true;
-        s.rpm = damp(s.rpm, 520, 3.1, dt);
-        s.glow = damp(s.glow, 0.55, 4, dt);
-      } else if (s.startTimer < 2.05) {
-        s.fuel = true;
-        s.rpm = damp(s.rpm, LLY.idleRpm, 2.2, dt);
-        s.glow = damp(s.glow, 0.12, 2.4, dt);
-      } else {
-        s.fuel = true;
-        const transitionTarget =
-          s.desiredRpm > LLY.idleRpm ? s.desiredRpm : Math.max(s.desiredRpm, LLY.idleRpm);
-        s.rpm = damp(s.rpm, transitionTarget, s.desiredRpm > 1600 ? 1.08 : 1.35, dt);
-        s.glow = damp(s.glow, 0, 2.8, dt);
-        if (s.startTimer > 2.25) s.starting = false;
-      }
-    } else {
-      s.fuel = true;
-      const target = Math.max(LLY.idleRpm, s.desiredRpm);
-      s.rpm = damp(s.rpm, target, target > 2200 ? 0.98 : 1.42, dt);
-      s.glow = damp(s.glow, 0, 3, dt);
-    }
-  } else {
-    s.fuel = false;
-    s.starting = false;
-    s.rpm = damp(s.rpm, 0, 1.05, dt);
-    if (s.rpm < 3.5) s.rpm = 0;
-    if (s.glow > 0.001) s.glow = damp(s.glow, 0, 1.5, dt);
-  }
-  s.rpm = clamp(s.rpm, 0, MAX_RPM + 12);
-  if (s.rpm > MAX_RPM) s.rpm = damp(s.rpm, MAX_RPM, 6, dt);
-  s.crankAngle = mod(s.crankAngle + s.rpm * 6 * dt * timeScale, 720);
+  stepRun(s, entry, dt, timeScale);
 
   const xray = engine.cutawayAmount > 0.05 || engine.explodeAmount > 0.08;
   inspectionFill.intensity = damp(inspectionFill.intensity, xray ? 0.3 : 0, 4.5, dt);
 
-  const firing = s.fuel && s.rpm > 90;
-  const turboBase = s.rpm > 20 ? 3.2 + (s.rpm / MAX_RPM) * 145 : 0;
+  const firing = s.fuel && s.rpm > entry.startSequence.firingAboveRpm;
   engine.update(dt, {
     crankAngleDeg: s.crankAngle,
     rpm: s.rpm,
     firing,
     fuel: s.fuel,
     glow: s.glow,
-    vane: vaneAtRpm(s.rpm),
-    turboRate: turboBase * timeScale,
+    timeScale,
   });
 
   if (s.engineOn && s.rpm > 40 && engine.explodeAmount < 0.1) {
@@ -355,18 +350,19 @@ function updateSimulation(dt) {
     engine.root.rotation.x = damp(engine.root.rotation.x, 0, 8, dt);
   }
 
-  const torque = firing && s.rpm > 150 ? torqueAtRpm(s.rpm, s.calibration) : 0;
-  const hp = firing && s.rpm > 150 ? horsepowerAtRpm(s.rpm, s.calibration) : 0;
-  const rail = firing ? railPressureAtRpm(s.rpm, s.calibration) : 0;
-  const boost = firing ? Math.min(23, boostAtRpm(s.rpm)) : 0;
-  const vane = s.rpm > 30 ? vaneAtRpm(s.rpm) : 0;
-  const egt = firing ? egtAtRpm(s.rpm) : 38 + Math.max(0, s.rpm) * 0.02;
-  const oil = firing ? oilPressureAtRpm(s.rpm) : 0;
-  const coolant = s.rpm > 50 ? coolantAtRpm(s.rpm) : 38;
-  environment.update(s.totalTime, { rpm: s.rpm, hp, torque });
+  const telemetry = engine.telemetry(s.rpm, s.calibration, firing);
+  environment.update(s.totalTime, { rpm: s.rpm, hp: telemetry.hp, torque: telemetry.torque });
 
-  s._telemetry = { torque, hp, rail, boost, vane, egt, oil, coolant, firing };
-  audio.update(dt, s, camera);
+  s._telemetry = telemetry;
+  audio.update(dt, {
+    rpm: s.rpm,
+    fuel: s.fuel,
+    starting: s.starting,
+    slowMotion: s.slowMotion,
+    cutaway: s.cutaway,
+    crankAngle: s.crankAngle,
+    telemetry,
+  }, camera);
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +405,9 @@ function updateCamera(dt) {
     return;
   }
   if (introTween) {
-    const t = clamp((performance.now() - startedAt) / 1000 / introTween.duration, 0, 1);
+    const t = QA_MODE
+      ? clamp(simulation.elapsed / introTween.duration, 0, 1)
+      : clamp((performance.now() - startedAt) / 1000 / introTween.duration, 0, 1);
     const e = easeOutCubic(t);
     camera.position.lerpVectors(introTween.startPos, introTween.endPos, e);
     controls.target.lerpVectors(introTween.startTarget, introTween.endTarget, e);
@@ -474,7 +472,7 @@ function enterWalk() {
   $('pointerState').textContent = 'CLICK TO LOOK';
   document.body.classList.add('walk-pointer-unlocked');
   if (window.innerWidth > 900) {
-    canvas.requestPointerLock?.();
+    canvas.requestPointerLock?.()?.catch(() => showToast('CLICK THE VIEW TO CAPTURE THE MOUSE'));
   }
   showToast('WALK MODE · WASD TO MOVE · MOUSE TO LOOK · V TO EXIT');
 }
@@ -539,8 +537,8 @@ function findPartId(object) {
 
 function selectionObjectsFor(id) {
   if (!id) return [];
-  if (id === 'valvetrain') {
-    return VALVETRAIN_IDS.flatMap((partId) => partRegistry.get(partId) || []);
+  if (Object.hasOwn(entry.inspect.aliases, id)) {
+    return entry.inspect.aliases[id].flatMap((partId) => partRegistry.get(partId) || []);
   }
   if (id === 'pistons') {
     return [
@@ -569,7 +567,9 @@ function isEffectivelyVisible(object) {
 function raycastParts({ cutawayAware = true } = {}) {
   raycaster.setFromCamera(pointerNdc, camera);
   const objects = [engine.root];
-  for (const [, roots] of environment.interactives) objects.push(...roots);
+  for (const registry of [stand.interactives, environment.interactives]) {
+    for (const roots of registry.values()) objects.push(...roots);
+  }
   const intersections = raycaster.intersectObjects(objects, true);
   const xrayed = engine.isXrayed;
   for (const hit of intersections) {
@@ -580,7 +580,7 @@ function raycastParts({ cutawayAware = true } = {}) {
       if (mat?.userData?.cutaway) continue;
     }
     const id = findPartId(hit.object);
-    if (id && getSpec(id)) return { id, object: hit.object, point: hit.point };
+    if (id && getSpec(id, current)) return { id, object: hit.object, point: hit.point };
   }
   return null;
 }
@@ -610,15 +610,15 @@ function updateHover(clientX, clientY) {
   }
   if (hit.id !== hoveredPart) {
     hoveredPart = hit.id;
-    const spec = getSpec(hit.id);
+    const spec = getSpec(hit.id, current);
     if (spec) {
       $('hoverName').textContent = spec.name.toUpperCase();
       $('hoverTag').hidden = false;
       if (!selectedPart) {
         outlinePass.selectedObjects = selectionObjectsFor(hit.id);
-        outlinePass.visibleEdgeColor.set(0x86c0c2);
-        outlinePass.hiddenEdgeColor.set(0x0e2828);
-        outlinePass.edgeStrength = 3.1;
+        outlinePass.visibleEdgeColor.set(entry.look.outline.hover.edgeColor);
+        outlinePass.hiddenEdgeColor.set(entry.look.outline.hover.hiddenColor);
+        outlinePass.edgeStrength = entry.look.outline.hover.edgeStrength;
         outlinePass.enabled = true;
       }
       canvas.style.cursor = 'pointer';
@@ -640,14 +640,14 @@ function selectPart(id) {
     clearSelection();
     return;
   }
-  const spec = getSpec(id);
+  const spec = getSpec(id, current);
   if (!spec) return;
   selectedPart = id;
   const objects = selectionObjectsFor(id);
   outlinePass.selectedObjects = objects;
-  outlinePass.visibleEdgeColor.set(0xe9a33d);
-  outlinePass.hiddenEdgeColor.set(0x332711);
-  outlinePass.edgeStrength = 5.1;
+  outlinePass.visibleEdgeColor.set(entry.look.outline.selected.edgeColor);
+  outlinePass.hiddenEdgeColor.set(entry.look.outline.selected.hiddenColor);
+  outlinePass.edgeStrength = entry.look.outline.selected.edgeStrength;
   outlinePass.enabled = true;
   $('inspectorEmpty').hidden = true;
   $('inspectorContent').hidden = false;
@@ -749,7 +749,8 @@ const gauge = {};
 function buildTachometer() {
   const svg = tach.svg;
   const ns = 'http://www.w3.org/2000/svg';
-  if (!svg || svg.childElementCount) return;
+  if (!svg) return;
+  svg.replaceChildren();
   const cx = tach.center.x;
   const cy = tach.center.y;
   const start = tach.start;
@@ -760,7 +761,7 @@ function buildTachometer() {
   track.setAttribute('stroke-linecap', 'butt');
   svg.append(track);
 
-  const redFrac = 3000 / MAX_RPM;
+  const redFrac = entry.ui.display.tachRedBandRpm / MAX_RPM;
   const red = document.createElementNS(ns, 'path');
   red.setAttribute('class', 'gauge-red');
   red.setAttribute('d', arcPath(cx, cy, tach.radius, start + redFrac * tach.sweep, end, 24));
@@ -785,7 +786,7 @@ function buildTachometer() {
     tick.setAttribute('y1', y1);
     tick.setAttribute('x2', x2);
     tick.setAttribute('y2', y2);
-    tick.setAttribute('class', `tick${major ? ' major' : ''}${rpm > 3000 ? ' redline' : ''}`);
+    tick.setAttribute('class', `tick${major ? ' major' : ''}${rpm > entry.ui.display.tachRedBandRpm ? ' redline' : ''}`);
     svg.append(tick);
     if (rpm % 1000 === 0) {
       const [tx, ty] = polarPoint(cx, cy, tach.radius - 26, a);
@@ -826,23 +827,27 @@ function updateTachometer(rpm) {
   const [x, y] = polarPoint(tach.center.x, tach.center.y, tach.radius, a);
   gauge.marker.setAttribute('cx', x);
   gauge.marker.setAttribute('cy', y);
-  gauge.marker.setAttribute('fill', rpm >= 3000 ? '#ed704f' : '#ffc36c');
+  gauge.marker.setAttribute('fill', rpm >= entry.ui.display.tachRedBandRpm ? '#ed704f' : '#ffc36c');
 }
 
-const curveCache = {
-  allison: [],
-  zf: [],
-};
-for (let rpm = 0; rpm <= MAX_RPM; rpm += 25) {
-  curveCache.allison.push({ rpm, torque: torqueAtRpm(rpm, 'allison'), hp: horsepowerAtRpm(rpm, 'allison') });
-  curveCache.zf.push({ rpm, torque: torqueAtRpm(rpm, 'zf'), hp: horsepowerAtRpm(rpm, 'zf') });
+let calibrationKeys, curveCache;
+function rebuildCurveCache() {
+  calibrationKeys = Object.keys(entry.ratings.calibrations);
+  curveCache = Object.fromEntries(calibrationKeys.map((key) => [key, []]));
+  for (let rpm = 0; rpm <= MAX_RPM; rpm += 25) {
+    for (const key of calibrationKeys) {
+      curveCache[key].push({ rpm, torque: torqueAtRpm(entry, rpm, key), hp: horsepowerAtRpm(entry, rpm, key) });
+    }
+  }
+
 }
+rebuildCurveCache();
 
 function drawDynoChart(rpm) {
   const c = $('dynoChart');
   if (!c) return;
-  const cal = simulation.calibration || 'allison';
-  const activeCurve = curveCache[cal] || curveCache.allison;
+  const cal = simulation.calibration || entry.ratings.defaultCalibration;
+  const activeCurve = curveCache[cal] || curveCache[entry.ratings.defaultCalibration];
   const ctx = c.getContext('2d');
   const w = c.width;
   const h = c.height;
@@ -918,8 +923,8 @@ function drawDynoChart(rpm) {
   ctx.moveTo(x, top);
   ctx.lineTo(x, top + plotH);
   ctx.stroke();
-  const ty = toYT(torqueAtRpm(rpm, cal));
-  const hy = toYH(horsepowerAtRpm(rpm, cal));
+  const ty = toYT(torqueAtRpm(entry, rpm, cal));
+  const hy = toYH(horsepowerAtRpm(entry, rpm, cal));
   ctx.fillStyle = '#f5e5c1';
   ctx.beginPath();
   ctx.arc(x, ty, 3.2, 0, TAU);
@@ -957,10 +962,6 @@ function buildCylinderStrip() {
   }
 }
 
-function formatInt(value) {
-  return Math.round(value).toLocaleString('en-US');
-}
-
 function updateTelemetryUI(dt, force = false) {
   uiTimer += dt;
   if (!force && uiTimer < 0.065) return;
@@ -996,8 +997,8 @@ function updateTelemetryUI(dt, force = false) {
   $('egtVal').textContent = formatInt(t.egt);
   $('oilVal').textContent = formatInt(t.oil);
   $('coolantVal').textContent = formatInt(t.coolant);
-  $('railBar').style.width = `${clamp(t.rail / 26000, 0, 1) * 100}%`;
-  $('boostBar').style.width = `${clamp(t.boost / 23, 0, 1) * 100}%`;
+  $('railBar').style.width = `${clamp(t.rail / RAIL_FULL_SCALE_PSI, 0, 1) * 100}%`;
+  $('boostBar').style.width = `${clamp(t.boost / entry.turbo.boostPeakPsi, 0, 1) * 100}%`;
   $('vaneBar').style.width = `${clamp(t.vane / 100, 0, 1) * 100}%`;
   $('egtBar').style.width = `${clamp((t.egt - 38) / 780, 0, 1) * 100}%`;
   $('oilBar').style.width = `${clamp(t.oil / 70, 0, 1) * 100}%`;
@@ -1028,10 +1029,10 @@ function updateTelemetryUI(dt, force = false) {
       label = 'COMBUSTION';
       note = 'GLOW · FIRING · IDLE RAMP';
       dotClass = 'starting';
-    } else if (Math.abs(s.rpm - LLY.idleRpm) < 18 && s.desiredRpm <= LLY.idleRpm + 5) {
+    } else if (Math.abs(s.rpm - entry.ratings.idleRpm) < 18 && s.desiredRpm <= entry.ratings.idleRpm + 5) {
       label = 'WARM IDLE';
       note = 'STABLE · CLOSED LOOP';
-    } else if (s.rpm >= 3200) {
+    } else if (s.rpm >= entry.ui.display.governedLabelRpm) {
       label = 'GOVERNED';
       note = 'ELECTRONIC LIMITER';
     } else if (Math.abs(s.rpm - s.desiredRpm) > 24) {
@@ -1156,7 +1157,7 @@ async function toggleAudio() {
   syncAudioButton();
   showToast(
     active
-      ? 'TEST CELL AUDIO ONLINE · V8 + GT3788VA SYNTH'
+      ? entry.ui.toasts.audioOnline
       : 'TEST CELL AUDIO MUTED',
   );
 }
@@ -1182,6 +1183,7 @@ function setModeButtons(mode) {
 }
 
 function toggleCutaway() {
+  if (swapping) return;
   simulation.cutaway = !simulation.cutaway;
   engine.setCutaway(simulation.cutaway);
   syncUI(true);
@@ -1189,6 +1191,7 @@ function toggleCutaway() {
 }
 
 function setExploded(on) {
+  if (swapping) return;
   if (simulation.exploded === on) {
     if (!on) showToast('ASSEMBLY ALREADY IN NOMINAL POSITION');
     return;
@@ -1213,6 +1216,7 @@ function toggleSlowMotion() {
 }
 
 function setCalibration(calKey) {
+  if (swapping) return;
   if (!CALIBRATIONS[calKey]) return;
   simulation.calibration = calKey;
   const cal = CALIBRATIONS[calKey];
@@ -1221,7 +1225,7 @@ function setCalibration(calKey) {
   });
   const noteEl = $('calRailNote');
   if (noteEl) {
-    noteEl.textContent = `${cal.shortLabel} · CP3.3 · ${formatInt(cal.maxRailPsi)} PSI MAX`;
+    noteEl.textContent = `${cal.shortLabel} · ${entry.ui.calibration.pump} · ${formatInt(cal.maxRailPsi)} PSI MAX`;
   }
   updateSimulation(0);
   syncUI(true);
@@ -1231,6 +1235,7 @@ function setCalibration(calKey) {
 }
 
 function applyPreset(value) {
+  if (swapping) return;
   const rpm = Number(value);
   if (rpm === 0) {
     stopEngine();
@@ -1244,8 +1249,7 @@ function applyPreset(value) {
     simulation.desiredRpm = rpm;
     syncUI(true);
   } else syncUI(true);
-  const names = { 680: 'WARM IDLE', 1600: 'PEAK TORQUE', 3000: 'PEAK HORSEPOWER', 3250: 'GOVERNED REDLINE' };
-  showToast(`${names[rpm] || 'SPEED PRESET'} · ${formatInt(rpm)} RPM`);
+  showToast(`${(presetByRpm(entry, rpm) || {}).toast || 'SPEED PRESET'} · ${formatInt(rpm)} RPM`);
 }
 
 function bindControls() {
@@ -1304,10 +1308,10 @@ function bindControls() {
   $('walkModeBtn').addEventListener('click', enterWalk);
   $('exitWalkBtn').addEventListener('click', exitWalk);
   $('closeInspector').addEventListener('click', clearSelection);
-  document.querySelectorAll('.quick-parts button').forEach((btn) => {
-    btn.addEventListener('click', () => selectPart(btn.dataset.inspect));
-  });
-  $('helpBtn').addEventListener('click', () => {
+  document.querySelector('.quick-parts').addEventListener('click', event => {
+    const button = event.target.closest('[data-inspect]');
+    if (button && !swapping) selectPart(button.dataset.inspect);
+  });  $('helpBtn').addEventListener('click', () => {
     $('helpModal').hidden = false;
   });
   $('modalClose').addEventListener('click', () => {
@@ -1331,7 +1335,7 @@ function bindControls() {
 
   canvas.addEventListener('pointerdown', (event) => {
     if (cameraMode === 'walk') {
-      if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.();
+      if (document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch(() => showToast('CLICK THE VIEW TO CAPTURE THE MOUSE'));
       return;
     }
     handlePointerDown(event);
@@ -1366,8 +1370,9 @@ function bindControls() {
     walk.pitch = clamp(walk.pitch, -1.35, 1.35);
   });
   window.addEventListener('keydown', (event) => {
+    if (swapping) return;
     const target = event.target;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
     if (event.code === 'Space') {
       event.preventDefault();
       toggleEngine();
@@ -1420,7 +1425,7 @@ function bindControls() {
       walk.keys.add(event.code);
     }
     if (/^Digit[1-5]$/.test(event.code)) {
-      const values = [0, 680, 1600, 3000, 3250];
+      const values = presetRows(entry).map((row) => row.rpm);
       applyPreset(values[Number(event.code.slice(5)) - 1]);
     }
   });
@@ -1460,7 +1465,7 @@ function captureScreenshot() {
   ctx.fillRect(0, out.height - 140, out.width, 140);
   ctx.fillStyle = '#e9a33d';
   ctx.font = `${Math.round(out.width * 0.011)}px Bahnschrift, Arial`;
-  ctx.fillText('DMAX  //  LLY 6600  ·  TEST CELL 04', out.width * 0.035, out.height - 58);
+  ctx.fillText(entry.ui.capture.caption, out.width * 0.035, out.height - 58);
   ctx.fillStyle = '#b9b6a8';
   ctx.font = `${Math.round(out.width * 0.0075)}px Consolas, monospace`;
   ctx.fillText(
@@ -1471,11 +1476,11 @@ function captureScreenshot() {
     out.height - 32,
   );
   ctx.textAlign = 'right';
-  ctx.fillText('MORAINE, OHIO  ·  ENGINE TEST CELL', out.width - 36, out.height - 32);
+  ctx.fillText(entry.ui.capture.place, out.width - 36, out.height - 32);
   const dataUrl = out.toDataURL('image/png');
   const link = document.createElement('a');
   link.href = dataUrl;
-  link.download = `duramax-lly-test-cell-${Math.round(simulation.rpm)}rpm.png`;
+  link.download = `${entry.ui.capture.fileStem}-${Math.round(simulation.rpm)}rpm.png`;
   link.click();
   showToast('RENDER CAPTURED · PNG DOWNLOADED');
 }
@@ -1483,31 +1488,140 @@ function captureScreenshot() {
 // ---------------------------------------------------------------------------
 // Initialisation and frame loop
 // ---------------------------------------------------------------------------
+
+const disposeBuild = value => {
+  if (!value) return;
+  value.model?.dispose?.();
+  value.stand?.dispose?.();
+  value.model?.root.removeFromParent();
+  for (const root of value.stand?.roots ?? []) root.removeFromParent();
+};
+const rebuildRegistry = () => {
+  partRegistry.clear();
+  for (const [id, roots] of engine.parts) partRegistry.set(id, roots.slice());
+  for (const registry of [stand.interactives, environment.interactives]) {
+    for (const [id, roots] of registry) {
+      if (!partRegistry.has(id)) partRegistry.set(id, []);
+      partRegistry.get(id).push(...roots);
+    }
+  }
+};
+const bindCurrent = value => {
+  current = value; entry = value.entry; engine = value.model; stand = value.stand;
+  PART_IDS = value.family.PART_IDS;
+  ({ calibrations: CALIBRATIONS, cylinders: CYLINDERS, firingOrder: FIRING_ORDER, cylinderState } = engine.kinematics);
+  MAX_RPM = entry.ratings.redlineRpm; RAIL_FULL_SCALE_PSI = railFullScalePsi(entry);
+  rebuildRegistry(); rebuildCurveCache();
+  environment.setBranding(entry); stand.setBranding(entry);
+  bindEntry(entry, { document, partIds: PART_IDS, defaultCalibration: simulation.calibration });
+  buildTachometer(); buildCylinderStrip();
+  $('rpmSlider').max = String(MAX_RPM);
+  walkWorld = buildWalkWorld({ ...environment.collision, ...stand.collision }, { x: ENGINE_CENTER_XZ.x, z: ENGINE_CENTER_XZ.y }, entry);
+  audio.configure(audioConfig());
+  outlinePass.edgeStrength = entry.look.outline.base.edgeStrength;
+  outlinePass.edgeGlow = entry.look.outline.base.edgeGlow;
+  outlinePass.edgeThickness = entry.look.outline.base.edgeThickness;
+  outlinePass.visibleEdgeColor.set(entry.look.outline.base.edgeColor);
+  outlinePass.hiddenEdgeColor.set(entry.look.outline.base.hiddenColor);
+};
+let rollbackState;
+const switchEngine = createEngineSwitcher({
+  getCurrent: () => current, load: loadEngine,
+  paint: () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  stop: () => { rollbackState = { ...simulation }; stopEngine(); },
+  lock: locked => {
+    swapping = locked;
+    for (const element of document.querySelectorAll('#enginePicker, #startStopBtn, #walkStartBtn, #rpmSlider, .preset, .cal-btn, .quick-parts button, #cutawayBtn, #explodeBtn, #assembleBtn')) element.disabled = locked;
+    $('enginePicker').value = current.id;
+  },
+  overlay: (visible, id) => {
+    bootText.textContent = visible ? 'LOADING ' + String(id).toUpperCase() : 'TEST CELL READY';
+    bootStatus.classList.toggle('done', !visible);
+  },
+  build: loaded => {
+    let model, nextStand;
+    const attachments = new Set(environment.root.children);
+    try {
+      model = loaded.family.buildEngine(materials, loaded.entry);
+      model.root.scale.setScalar(0.001); model.root.position.set(0, ENGINE_Y, 0);
+      model.root.visible = false; scene.add(model.root);
+      nextStand = buildStand(environment.root, materials, loaded.entry);
+      for (const root of nextStand.roots) root.visible = false;
+      nextStand.finalize();
+      return { ...loaded, model, stand: nextStand };
+    } catch (failure) {
+      disposeBuild({ model, stand: nextStand });
+      // A stand builder may throw before returning its owned roots.
+      for (const root of [...environment.root.children]) if (!attachments.has(root)) root.removeFromParent();
+      throw failure;
+    }
+  },
+  commit: next => {
+    rollbackState = { ...simulation };
+    const { cutawayAmount, explodeAmount } = engine;
+    Object.assign(simulation, { engineOn: false, starting: false, fuel: false, startTimer: 0, rpm: 0,
+      desiredRpm: 0, lastRpmTarget: 0, crankAngle: 0, glow: 0, hasRun: false, autoStarted: true,
+      calibration: next.entry.ratings.defaultCalibration, _telemetry: null });
+    clearSelection(); hoveredPart = null; hoverTarget = null; hideHoverTag();
+    bindCurrent(next);
+    engine.setCutaway(simulation.cutaway); engine.cutawayAmount = cutawayAmount;
+    engine.setExploded(simulation.exploded); engine.explodeAmount = explodeAmount;
+    engine.root.visible = true; for (const root of stand.roots) root.visible = true;
+    updateSimulation(0); syncUI(true); drawDynoChart(0); updateTachometer(0);
+    audio.lastCrankAngle = null;
+    if (cameraMode === 'walk') {
+      const fixed = resolveWalk(camera.position, camera.position, walkWorld);
+      camera.position.x = fixed.x; camera.position.z = fixed.z; walk.lastSafe.copy(camera.position);
+    }
+    confineOrbitCamera(camera.position, controls.target, environment.collision.orbitBox, controls.minDistance);
+    hoverDirty = true;
+    const url = new URL(window.location.href); url.searchParams.set('engine', next.id);
+    history.replaceState(null, '', url);
+  },
+  rollback: previous => {
+    Object.assign(simulation, rollbackState); bindCurrent(previous); syncUI(true);
+  },
+  dispose: disposeBuild,
+  ready: value => showToast(value.entry.identity.shortName.toUpperCase() + ' READY'),
+  error: () => showToast('ENGINE LOAD FAILED · PREVIOUS ENGINE RETAINED'),
+});
+const picker = $('enginePicker');
+for (const id of ENGINE_IDS) {
+  const option = document.createElement('option'); option.value = id;
+  option.textContent = id === current.id ? entry.identity.shortName : id.toUpperCase(); picker.append(option);
+}
+picker.value = current.id;
+picker.addEventListener('change', () => { void switchEngine(picker.value); });
 buildTachometer();
 buildCylinderStrip();
+bindEntry(entry, { document, partIds: PART_IDS, defaultCalibration: simulation.calibration });
 bindControls();
+if (initialRequest.fallback) showToast('UNKNOWN ENGINE · DEFAULT LOADED');
 setModeButtons('orbit');
 updateSimulation(1 / 60);
 drawDynoChart(simulation.rpm);
 updateTachometer(simulation.rpm);
 syncUI(true);
 
-let previousFrameTime = performance.now();
+let previousFrameTime = QA_MODE ? 0 : performance.now();
 let lastFpsCheck = 0;
 let fpsFrames = 0;
 
 function animate() {
   requestAnimationFrame(animate);
-  const now = performance.now();
-  const rawDt = (now - previousFrameTime) / 1000;
-  const dt = Math.min(0.35, rawDt);
-  const cameraDt = Math.min(0.1, rawDt);
-  previousFrameTime = now;
-  simulation.elapsed += dt;
 
-  updateSimulation(dt);
-  updateCamera(cameraDt);
-  updateTelemetryUI(dt);
+  if (!QA_MODE) {
+    const now = performance.now();
+    const rawDt = (now - previousFrameTime) / 1000;
+    const dt = Math.min(0.35, rawDt);
+    const cameraDt = Math.min(0.1, rawDt);
+    previousFrameTime = now;
+    simulation.elapsed += dt;
+
+    updateSimulation(dt);
+    updateCamera(cameraDt);
+    updateTelemetryUI(dt);
+  }
 
   if (hoverDirty && performance.now() - lastHoverCheck > 55 && cameraMode === 'orbit') {
     lastHoverCheck = performance.now();
@@ -1537,7 +1651,7 @@ function animate() {
       composer.setPixelRatio(1);
       renderer.setPixelRatio(1);
       onResize();
-      showToast('ADAPTIVE QUALITY · HIGH-DENSITY AO DISABLED FOR SMOOTH MOTION', 3200);
+      showToast('ADAPTIVE QUALITY · HIGH-DENSITY AO DISABLED FOR SMOOTH MOTION', entry.ui.display.adaptiveToastMs);
     }
   }
   frameCount += 1;
@@ -1555,21 +1669,26 @@ async function boot() {
     bootText.textContent = 'RENDERER READY · CONTEXT PARTIAL';
   }
   bootStatus.classList.add('done');
-  startedAt = performance.now();
-  previousFrameTime = performance.now();
+  if (!QA_MODE) {
+    startedAt = performance.now();
+  }
+  previousFrameTime = QA_MODE ? 0 : performance.now();
   lastFpsCheck = performance.now();
   animate();
 }
 
 // Interface for automated inspection / QA.
-window.__LLY__ = {
+installQaHook(window, {
   THREE,
   scene,
   camera,
   renderer,
   composer,
   controls,
-  engine,
+  get engine() { return engine; },
+  get current() { return current; },
+  get stand() { return stand; },
+  switchEngine,
   environment,
   audio,
   simulation,
@@ -1596,7 +1715,7 @@ window.__LLY__ = {
     $('ui').style.display = visible ? '' : 'none';
   },
   setFixture: ({
-    rpm = 680,
+    rpm = entry.ratings.idleRpm,
     crankAngle = null,
     running = true,
     fuel = true,
@@ -1630,15 +1749,20 @@ window.__LLY__ = {
       firing: simulation.fuel,
       fuel: simulation.fuel,
       glow: 0,
-      vane: vaneAtRpm(rpm),
-      turboRate: 0,
+      // QA hook: the turbo stays still
+      timeScale: 0,
     });
     syncUI(true);
   },
   render: (count = 1) => {
-    for (let i = 0; i < count; i++) updateSimulation(1 / 60);
+    for (let i = 0; i < count; i++) {
+      simulation.elapsed += 1 / 60;
+      updateSimulation(1 / 60);
+      updateCamera(1 / 60);
+      updateTelemetryUI(1 / 60);
+    }
     composer.render();
   },
-};
+});
 
 boot();

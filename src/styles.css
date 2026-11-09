@@ -1,5 +1,5 @@
 /* ==========================================================================
-   DMAX LLY 6600 — engineering test cell interface
+   Engine test cell interface
    ========================================================================== */
 :root {
   --ink: #0b0e0c;
@@ -112,6 +112,7 @@ input:focus-visible {
 
 #ui button,
 #ui input,
+#ui select,
 #ui .panel,
 #ui .bottom-dock,
 #ui .modal-card {

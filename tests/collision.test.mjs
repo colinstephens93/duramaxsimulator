@@ -3,6 +3,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWalkWorld, confineOrbitCamera, isWalkable, resolveWalk } from '../src/collision.js';
+import lly from '../src/engines/lly/index.js';
 import { mulberry32 } from './helpers/fake-audio.mjs';
 
 // environment.collision: the room, and the dyno guard volume the walker keeps out of.
@@ -11,7 +12,7 @@ const collision = {
   dynoBox: { min: { x: -0.8, z: -2.3 }, max: { x: 0.8, z: -1.05 } },
 };
 const ENGINE_CENTER = { x: 0, z: -0.05 };
-const world = buildWalkWorld(collision, ENGINE_CENTER);
+const world = buildWalkWorld(collision, ENGINE_CENTER, lly);
 
 const SLACK = 1e-3; // a millimetre
 const near = (actual, expected, what, tolerance = 1e-6) =>
@@ -50,7 +51,7 @@ describe('the walkable world', () => {
   });
 
   it('keeps 1.03 m from the engine centre', () => {
-    assert.deepEqual(world.circles, [{ x: 0, z: -0.05, radius: 1.03 }]);
+    assert.deepEqual(world.circles, [{ x: 0, z: -0.05, radius: lly.walk.clearanceRadiusM }]);
   });
 
   it('keeps 0.3 m clear of the dyno guard volume', () => {
@@ -130,7 +131,7 @@ describe('walking up to the dyno guard', () => {
     const cases = [
       [{ x: 2.6, z: -2.0 }, { x: -0.4, z: -2.0 }, { x: 1.1, z: -2.0 }],
       [{ x: 0.3, z: -3.8 }, { x: 0.3, z: -0.8 }, { x: 0.3, z: -2.6 }],
-      [{ x: 1.0, z: 0.0 }, { x: 1.0, z: -3.0 }, { x: 1.03, z: -0.75 }],
+      [{ x: 1.0, z: 0.0 }, { x: 1.0, z: -3.0 }, { x: lly.walk.clearanceRadiusM, z: -0.75 }],
     ];
     for (const [from, to, expected] of cases) {
       const end = resolveWalk(from, to, world);
@@ -145,14 +146,14 @@ describe('walking up to the engine', () => {
     const run = walk({ x: 0, z: 3 }, { x: 0, z: -1 });
     assertSmooth(run);
     near(run.end.z, 0.98, 'z');
-    near(Math.hypot(run.end.x - ENGINE_CENTER.x, run.end.z - ENGINE_CENTER.z), 1.03, 'distance from the centre');
+    near(Math.hypot(run.end.x - ENGINE_CENTER.x, run.end.z - ENGINE_CENTER.z), lly.walk.clearanceRadiusM, 'distance from the centre');
   });
 
   it('slides round it without ever entering it', () => {
     const run = walk({ x: 1.0, z: 0.5 }, { x: 0, z: -1 });
     assertSmooth(run);
     for (const p of run.trail) {
-      assert.ok(Math.hypot(p.x - ENGINE_CENTER.x, p.z - ENGINE_CENTER.z) >= 1.03 - SLACK, `inside the engine at (${p.x}, ${p.z})`);
+      assert.ok(Math.hypot(p.x - ENGINE_CENTER.x, p.z - ENGINE_CENTER.z) >= lly.walk.clearanceRadiusM - SLACK, `inside the engine at (${p.x}, ${p.z})`);
     }
     assert.ok(run.trail.some((p) => p.z < 0 && p.x > 1.02), 'never got round the side of the engine');
   });
@@ -210,7 +211,7 @@ describe('where obstacles meet', () => {
     // The engine disc crosses the guard's front face at x = sqrt(1.03^2 - 0.7^2) = 0.7556.
     const run = walk({ x: 1.2, z: 0.9 }, { x: -0.45, z: -1.65 }, { frames: 80 });
     assertSmooth(run);
-    near(run.end.x, Math.sqrt(1.03 ** 2 - 0.7 ** 2), 'x', 1e-3);
+    near(run.end.x, Math.sqrt(lly.walk.clearanceRadiusM ** 2 - 0.7 ** 2), 'x', 1e-3);
     near(run.end.z, -0.75, 'z', 1e-3);
     const last = run.trail.slice(-5);
     for (const p of last) near(Math.hypot(p.x - run.end.x, p.z - run.end.z), 0, 'drift once at rest', 1e-6);

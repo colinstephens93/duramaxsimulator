@@ -1,11 +1,11 @@
-// The linear ceiling fixtures (buildCeilingFixture in src/environment.js): the hanger rods have to be
+// The linear ceiling fixtures (buildCeilingFixture in src/environment/cell.js): the hanger rods have to be
 // attached to the housing and reach the ceiling. Real geometry, built without a renderer.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { buildCeilingFixture } from '../src/environment.js';
+import { buildCeilingFixture } from '../src/environment/cell.js';
 
-// environment.js hangs its four fixtures at these (x, z) at y = 3.86, under a ceiling slab whose
+// cell.js hangs its four fixtures at these (x, z) at y = 3.86, under a ceiling slab whose
 // underside is at y = 4.22.
 const FIXTURE_Y = 3.86;
 const CEILING_UNDERSIDE_Y = 4.22;
